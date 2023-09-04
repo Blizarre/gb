@@ -1,0 +1,4 @@
+0x00 C Initialize the stack pointer
+0x03 S Zero the Video RAM
+0x07 L loop
+0x0a G loop
