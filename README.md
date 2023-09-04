@@ -4,18 +4,22 @@ The long-term goal is to build an emulator for the Game Boy. But as a first step
 
 ## Gameboy BIOS
 
-- The BIOS I am disassembling has the md5 `32fbbd84168d3482956eb3c5051637f5` and should be [DMG](https://gbdev.io/pandocs/Power_Up_Sequence.html) version.
+- The BIOS I am disassembling has the md5 `32fbbd84168d3482956eb3c5051637f5` and should be the [DMG](https://gbdev.io/pandocs/Power_Up_Sequence.html) version.
 - See `bios.ann` for the annotations
 
 ### Annotations
 
 The annotation file has a simple format:
+
+```
 0xOFFSET PURPOSE VALUE
+0xOFFSET PURPOSE VALUE
+```
 
-OFFSET is a hex offset from the beginning of the file
-
-PURPOSE can be C (comment), G (goto, jump), L (label for a jump), S (section)
-
+- OFFSET is the hex offset of the OPCODE from the beginning of the file
+- PURPOSE can be C (comment), G (goto, jump), L (label for a jump), S (section). Section text will appear before the line.
+- VALUE is what will be displayed for the current OPCODE
+ 
 ### Disassemble
 
 Run this command to display the disassembled code with the annotations:
