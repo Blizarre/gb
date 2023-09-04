@@ -45,13 +45,23 @@ impl From<&str> for Annotation {
 fn main() {
     let matches = Command::new("Disassembler")
         .arg(Arg::new("file").required(true))
-        .arg(Arg::new("annotation").required(false))
+        .arg(Arg::new("annotation").required(true))
         .get_matches();
     let file_name: &String = matches.get_one("file").unwrap();
-
     let file_name_annotation: &String = matches.get_one("annotation").unwrap();
+
+    let annotations =
+        load_annotations(file_name_annotation).expect("Error loading the annotation file");
+
+    println!("{}", file_name);
+    disassemble(&mut File::open(file_name).unwrap(), annotations).unwrap();
+}
+
+fn load_annotations(
+    file_name_annotation: &String,
+) -> Result<BTreeMap<usize, Vec<Annotation>>, std::io::Error> {
     let mut tmp = String::new();
-    let annotations = File::open(file_name_annotation)
+    File::open(file_name_annotation)
         .map(|mut f| f.read_to_string(&mut tmp))
         .map(|_| {
             tmp.split('\n')
@@ -62,10 +72,6 @@ fn main() {
                 .map(|(key, group)| (key, group.collect()))
                 .collect::<BTreeMap<usize, Vec<Annotation>>>()
         })
-        .unwrap();
-
-    println!("{}", file_name);
-    disassemble(&mut File::open(file_name).unwrap(), annotations).unwrap();
 }
 
 fn disassemble(
