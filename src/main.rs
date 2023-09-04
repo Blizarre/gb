@@ -137,10 +137,13 @@ enum Opcode {
     Nop,
     Ld16(Register16, u16),
     Ld8(Register8, Register8),
+    Inc8(Register8),
     LdFromMem(Register8, Register16),
+    LdFromMem8(Register8, Register8),
     LdToMem(Register16, Register8),
     LdToMemDec(Register16, Register8),
     LdImm16(Register16, u16),
+    LdImm8(Register8, u8),
     Inc16(Register16),
     Xor(Register8, Register8),
     ComplBit(u8, Register8),
@@ -152,6 +155,7 @@ impl Display for Opcode {
         match self {
             Opcode::Ld16(r16, u16) => write!(f, "LD16({:?}, 0x{:x})", r16, u16),
             Opcode::LdImm16(r16, u16) => write!(f, "LdImm16({:?}, 0x{:x})", r16, u16),
+            Opcode::LdImm8(r8, u8) => write!(f, "LdImm8({:?}, 0x{:x})", r8, u8),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -175,15 +179,19 @@ fn decode(data: &[u8]) -> (usize, Opcode) {
         0x01 => (3, Opcode::Ld16(Register16::BC, decode_u16(&data[1..]))),
         0x02 => (1, Opcode::LdToMem(Register16::BC, Register8::A)),
         0x03 => (1, Opcode::Inc16(Register16::BC)),
+        0x0e => (2, Opcode::LdImm8(Register8::C, data[1])),
+        0x0c => (1, Opcode::Inc8(Register8::C)),
         0x20 => (2, Opcode::JumpNZMemOffset(data[1] as i8)),
         0x21 => (3, Opcode::LdImm16(Register16::HL, decode_u16(&data[1..]))),
         0x31 => (3, Opcode::LdImm16(Register16::SP, decode_u16(&data[1..]))),
         0x32 => (1, Opcode::LdToMemDec(Register16::HL, Register8::A)),
+        0x3e => (2, Opcode::LdImm8(Register8::A, data[1])),
         0x7f => (1, Opcode::Ld8(Register8::A, Register8::A)),
         0x45 => (1, Opcode::Ld8(Register8::B, Register8::L)),
         0x4c => (1, Opcode::Ld8(Register8::H, Register8::C)),
         0x46 => (1, Opcode::LdFromMem(Register8::B, Register16::HL)),
         0xaf => (1, Opcode::Xor(Register8::A, Register8::A)),
+        0xe2 => (1, Opcode::LdFromMem8(Register8::C, Register8::A)),
         _ => panic!("Unknown Opcode {:x}", data[0]),
     }
 }

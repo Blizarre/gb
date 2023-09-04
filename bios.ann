@@ -1,4 +1,9 @@
 0x00 C Initialize the stack pointer
-0x03 S Zero the Video RAM
-0x07 L loop
-0x0a G loop
+0x03 S Zero VRAM from 0x9fff down to 0x9f00
+0x03 S It is part of the Window background
+0x07 L empty_ram
+0x0a G empty_ram
+0x13 C ????? Set 0x80 at address 0x9eff (Video RAM)
+0x14 S Audio configuration
+0x14 C Set value 0x80 at 0xFF11 (Configure Channel 1 Sound length/Wave pattern duty)
+0x16 C Set value 0xf3 at 0xFF12 (Configure Channel 1 Volume Envelope)
