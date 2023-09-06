@@ -1,9 +1,14 @@
 0x00 C Initialize the stack pointer
-0x03 S Zero VRAM from 0x9fff down to 0x9f00
-0x03 S It is part of the Window background
-0x07 L empty_ram
-0x0a G empty_ram
-0x13 C ????? Set 0x80 at address 0x9eff (Video RAM)
-0x14 S Audio configuration
+0x03 S Zero VRAM from 0x9fff down to 0x8000
+0x07 L clear_vram
+0x08 C Set the Z flag if the Most Significant Bit of H (and HL) is unset, signaling that HL is past 0x8000 into 0x7fff
+0x0a G clear_vram
+0x0c S Audio configuration
+0x13 C Set 0x80 at address 0xff26  (Turn the Audio Processing Unit on)
 0x14 C Set value 0x80 at 0xFF11 (Configure Channel 1 Sound length/Wave pattern duty)
-0x16 C Set value 0xf3 at 0xFF12 (Configure Channel 1 Volume Envelope)
+0x18 C Set value 0xf3 at 0xFF12 (Configure Channel 1 Volume Envelope)
+0x19 C Set value 0xf3 at 0xFF25 (Selection of Sound output terminal (R/W))
+0x1d C Set value 0x77 at 0xFF24 (Channel control / ON-OFF / Volume (R/W))
+0x1f S Palette?
+0x1f C Set value 0x77 at 0xFF47 (BGP - BG Palette Data (R/W))
+0x21 C 0x0104 is the address of the beginning of the Nintendo logo in the cartridge

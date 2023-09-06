@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::fmt::{Debug, Display};
 use std::{error::Error, fs::File, io::Read};
 
-use clap::{Arg, Command};
+use clap::{Arg, ArgAction, Command};
 use itertools::Itertools;
 extern crate clap;
 
@@ -46,6 +46,7 @@ fn main() {
     let matches = Command::new("Disassembler")
         .arg(Arg::new("file").required(true))
         .arg(Arg::new("annotation").required(true))
+        .arg(Arg::new("debug").short('d').action(ArgAction::SetTrue))
         .get_matches();
     let file_name: &String = matches.get_one("file").unwrap();
     let file_name_annotation: &String = matches.get_one("annotation").unwrap();
@@ -54,7 +55,12 @@ fn main() {
         load_annotations(file_name_annotation).expect("Error loading the annotation file");
 
     println!("{}", file_name);
-    disassemble(&mut File::open(file_name).unwrap(), annotations).unwrap();
+    disassemble(
+        &mut File::open(file_name).unwrap(),
+        annotations,
+        matches.get_flag("debug"),
+    )
+    .unwrap();
 }
 
 fn load_annotations(
@@ -65,6 +71,7 @@ fn load_annotations(
         .map(|mut f| f.read_to_string(&mut tmp))
         .map(|_| {
             tmp.split('\n')
+                .filter(|l| !l.trim().is_empty())
                 .map(Annotation::from)
                 .sorted_by_key(|a| a.location)
                 .group_by(|a| a.location)
@@ -77,6 +84,7 @@ fn load_annotations(
 fn disassemble(
     file: &mut File,
     annotations: BTreeMap<usize, Vec<Annotation>>,
+    debug: bool,
 ) -> Result<(), Box<dyn Error + 'static>> {
     let empty_vec = vec![];
     let mut buf = vec![];
@@ -102,6 +110,9 @@ fn disassemble(
         }
 
         let (len, opcode) = decode(&buf[idx..]);
+        if debug {
+            print!("{:02x} ", buf[idx]);
+        }
         println!("0x{:04x} {} {} {} {}", idx, opcode, label, goto, comment);
         idx += len;
     }
@@ -139,7 +150,8 @@ enum Opcode {
     Ld8(Register8, Register8),
     Inc8(Register8),
     LdFromMem(Register8, Register16),
-    LdFromMem8(Register8, Register8),
+    LdToMem8FromReg(Register8, Register8),
+    LdToMem8FromMem(u8, Register8),
     LdToMem(Register16, Register8),
     LdToMemDec(Register16, Register8),
     LdImm16(Register16, u16),
@@ -156,6 +168,7 @@ impl Display for Opcode {
             Opcode::Ld16(r16, u16) => write!(f, "LD16({:?}, 0x{:x})", r16, u16),
             Opcode::LdImm16(r16, u16) => write!(f, "LdImm16({:?}, 0x{:x})", r16, u16),
             Opcode::LdImm8(r8, u8) => write!(f, "LdImm8({:?}, 0x{:x})", r8, u8),
+            Opcode::LdToMem8FromMem(u8, r8) => write!(f, "LdToMem8FromMem(0x{:x}, {:?})", u8, r8),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -179,19 +192,24 @@ fn decode(data: &[u8]) -> (usize, Opcode) {
         0x01 => (3, Opcode::Ld16(Register16::BC, decode_u16(&data[1..]))),
         0x02 => (1, Opcode::LdToMem(Register16::BC, Register8::A)),
         0x03 => (1, Opcode::Inc16(Register16::BC)),
+        0x04 => (1, Opcode::Inc8(Register8::B)),
         0x0e => (2, Opcode::LdImm8(Register8::C, data[1])),
         0x0c => (1, Opcode::Inc8(Register8::C)),
+        0x11 => (3, Opcode::LdImm16(Register16::DE, decode_u16(&data[1..]))),
         0x20 => (2, Opcode::JumpNZMemOffset(data[1] as i8)),
         0x21 => (3, Opcode::LdImm16(Register16::HL, decode_u16(&data[1..]))),
         0x31 => (3, Opcode::LdImm16(Register16::SP, decode_u16(&data[1..]))),
         0x32 => (1, Opcode::LdToMemDec(Register16::HL, Register8::A)),
+        0x1a => (1, Opcode::LdFromMem(Register8::A, Register16::DE)),
         0x3e => (2, Opcode::LdImm8(Register8::A, data[1])),
+        0x77 => (1, Opcode::LdToMem(Register16::HL, Register8::A)),
         0x7f => (1, Opcode::Ld8(Register8::A, Register8::A)),
         0x45 => (1, Opcode::Ld8(Register8::B, Register8::L)),
         0x4c => (1, Opcode::Ld8(Register8::H, Register8::C)),
         0x46 => (1, Opcode::LdFromMem(Register8::B, Register16::HL)),
         0xaf => (1, Opcode::Xor(Register8::A, Register8::A)),
-        0xe2 => (1, Opcode::LdFromMem8(Register8::C, Register8::A)),
+        0xe2 => (1, Opcode::LdToMem8FromReg(Register8::C, Register8::A)),
+        0xe0 => (2, Opcode::LdToMem8FromMem(data[1], Register8::A)),
         _ => panic!("Unknown Opcode {:x}", data[0]),
     }
 }
