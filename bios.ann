@@ -12,3 +12,9 @@
 0x1f S Palette?
 0x1f C Set value 0x77 at 0xFF47 (BGP - BG Palette Data (R/W))
 0x21 C 0x0104 is the address of the beginning of the Nintendo logo in the cartridge
+0x27 C Load the first character of the logo into A
+0x28 G Something
+0x2b D 0x6a
+0x29 C Unknown data
+0x96 L where
+0xa1 G where
