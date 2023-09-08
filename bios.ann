@@ -8,10 +8,11 @@
 0x14 C Set value 0x80 at 0xFF11 (Configure Channel 1 Sound length/Wave pattern duty)
 0x18 C Set value 0xf3 at 0xFF12 (Configure Channel 1 Volume Envelope)
 0x19 C Set value 0xf3 at 0xFF25 (Selection of Sound output terminal (R/W))
-0x1d C Set value 0x77 at 0xFF24 (Channel control / ON-OFF / Volume (R/W))
-0x1f S Palette?
-0x1f C Set value 0x77 at 0xFF47 (BGP - BG Palette Data (R/W))
+0x1c C Set value 0x77 at 0xFF24 (Channel control / ON-OFF / Volume (R/W))
+0x1d S Palette?
+0x1f C Set value 0xfc at 0xFF47 (BGP - BG Palette Data (R/W) - Idx 0 is white, others are black)
 0x21 C 0x0104 is the address of the beginning of the Nintendo logo in the cartridge
+0x24 C 0x8010 is inside VRAM
 0x27 C Load the first character of the logo into A
 0x28 G Something
 0x2b D 0x6a

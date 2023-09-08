@@ -82,6 +82,10 @@ impl Slot {
     pub fn r16(r: Register16) -> Slot {
         Slot::Register16(r)
     }
+
+    pub fn addr(r: AddrRegister) -> Slot {
+        Slot::AddrRegister(r)
+    }
 }
 
 fn decode_u16(data: &[u8]) -> u16 {
