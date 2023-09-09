@@ -51,23 +51,21 @@ fn main() {
         Annotation::parse_file(file_name_annotation).expect("Error loading the annotation file");
 
     println!("{}", file_name);
-    disassemble(
-        &mut File::open(file_name).unwrap(),
-        annotations,
-        matches.get_flag("debug"),
-    )
-    .unwrap();
+
+    let mut buf = vec![];
+    File::open(file_name)
+        .and_then(|mut file| file.read_to_end(&mut buf))
+        .unwrap();
+    disassemble(buf, annotations, matches.get_flag("debug")).unwrap()
 }
 
 fn disassemble(
-    file: &mut File,
+    data: Vec<u8>,
     annotations: BTreeMap<usize, Vec<Annotation>>,
     debug: bool,
 ) -> Result<(), Box<dyn Error + 'static>> {
     let empty_vec = vec![];
-    let mut buf = vec![];
-    file.read_to_end(&mut buf)?;
-    let mut it = IndexedIter::from_vec(buf.clone());
+    let mut it = IndexedIter::from_vec(data.clone());
 
     loop {
         let mut comment = String::new();
@@ -105,7 +103,7 @@ fn disassemble(
             let current_index = it.index();
             let opcode = decode(&mut it).unwrap();
             if debug {
-                print!("{:02x} ", buf[current_index]);
+                print!("{:02x} ", data[current_index]);
             }
             println!(
                 "0x{:04x} {} {} {} {}",
