@@ -48,7 +48,7 @@ fn main() {
     let file_name_annotation: &String = matches.get_one("annotation").unwrap();
 
     let annotations =
-        Annotation::parse(file_name_annotation).expect("Error loading the annotation file");
+        Annotation::parse_file(file_name_annotation).expect("Error loading the annotation file");
 
     println!("{}", file_name);
     disassemble(
