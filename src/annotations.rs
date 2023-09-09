@@ -130,7 +130,10 @@ mod tests {
 
     #[test]
     fn test_purpose_from_invalid() {
-        assert!(Purpose::from_char("Q").is_err());
+        assert!(matches!(
+            Purpose::from_char("Q").unwrap_err(),
+            AnnotationError::InvalidMnemonic(_err)
+        ));
     }
 
     #[test]
@@ -176,6 +179,21 @@ mod tests {
     #[test]
     fn test_annotation_parse_invalid_data() {
         let data = "0x1234 C value\n0x567w S test".to_string();
-        assert!(Annotation::parse(&data).is_err());
+        assert!(matches!(
+            Annotation::parse(&data).unwrap_err(),
+            AnnotationError::ParseError(_err)
+        ));
+
+        let data = "0x1234 C\n0x567a S test".to_string();
+        assert!(matches!(
+            Annotation::parse(&data).unwrap_err(),
+            AnnotationError::MissingField
+        ));
+
+        let data = "0x1234 C test\n0x567a W test".to_string();
+        assert!(matches!(
+            Annotation::parse(&data).unwrap_err(),
+            AnnotationError::InvalidMnemonic(_err)
+        ));
     }
 }
