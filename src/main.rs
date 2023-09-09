@@ -12,6 +12,9 @@ use annotations::{Annotation, Purpose};
 
 mod annotations;
 
+/// Vector Iterator which keep track of where it is in the original structure.
+/// The `index()` method will return the index of the next element inside the original vec
+/// at the time of the call.
 struct IndexedIter<T> {
     it: std::vec::IntoIter<T>,
     index: usize,
@@ -21,8 +24,13 @@ impl<T> Iterator for IndexedIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.index += 1;
-        self.it.next()
+        match self.it.next() {
+            Some(x) => {
+                self.index += 1;
+                Some(x)
+            }
+            None => None,
+        }
     }
 }
 
@@ -101,6 +109,7 @@ fn disassemble(
             it.nth(skip - 1);
         } else {
             let current_index = it.index();
+
             let opcode = decode(&mut it).unwrap();
             if debug {
                 print!("{:02x} ", data[current_index]);
@@ -116,15 +125,15 @@ fn disassemble(
 #[derive(Debug)]
 enum Opcode {
     Nop,
+    Ret,
     Ld(Slot, Slot),
     Call(Slot),
     Ld8(Register8, Register8),
-    Inc8(Register8),
+    Inc(Slot),
     Dec8(Register8),
     LdToMemDec(Register16, Register8),
     LdToMemInc(Register16, Register8),
     RotLeft(Register8),
-    Inc16(Register16),
     Push(Register16),
     Pop(Register16),
     Xor(Register8, Register8),
@@ -152,11 +161,11 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x00 => Opcode::Nop,
         0x01 => Opcode::Ld(Slot::r16(BC), Slot::parse_d16(data)?),
         0x02 => Opcode::Ld(Slot::addr(AddrRegister::BC), Slot::r8(A)),
-        0x03 => Opcode::Inc16(Register16::BC),
-        0x04 => Opcode::Inc8(Register8::B),
+        0x03 => Opcode::Inc(Slot::r16(Register16::BC)),
+        0x04 => Opcode::Inc(Slot::r8(Register8::B)),
         0x05 => Opcode::Dec8(Register8::B),
         0x06 => Opcode::Ld(Slot::r8(B), Slot::parse_d8(data)?),
-        0x0c => Opcode::Inc8(Register8::C),
+        0x0c => Opcode::Inc(Slot::r8(Register8::C)),
         0x0e => Opcode::Ld(Slot::r8(C), Slot::parse_a8(data)?),
         0x11 => Opcode::Ld(Slot::r16(DE), Slot::parse_d16(data)?),
         0x1a => Opcode::Ld(Slot::r8(A), Slot::addr(AddrRegister::DE)),
@@ -164,6 +173,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x20 => Opcode::JumpNZMemOffset(data.next().ok_or(DecodeError::EndOfStream)? as i8),
         0x21 => Opcode::Ld(Slot::r16(HL), Slot::parse_d16(data)?),
         0x22 => Opcode::LdToMemInc(Register16::HL, Register8::A),
+        0x23 => Opcode::Inc(Slot::r16(Register16::HL)),
         0x31 => Opcode::Ld(Slot::r16(SP), Slot::parse_d16(data)?),
         0x32 => Opcode::LdToMemDec(Register16::HL, Register8::A),
         0x3e => Opcode::Ld(Slot::r8(A), Slot::parse_d8(data)?),
@@ -176,6 +186,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0xaf => Opcode::Xor(Register8::A, Register8::A),
         0xc1 => Opcode::Pop(Register16::BC),
         0xc5 => Opcode::Push(Register16::BC),
+        0xc9 => Opcode::Ret,
         0xcd => Opcode::Call(Slot::parse_d16(data)?),
         0xe0 => Opcode::Ld(Slot::parse_a8(data)?, Slot::r8(A)),
         0xe2 => Opcode::Ld(Slot::addr(AddrRegister::C), Slot::r8(A)),
@@ -216,4 +227,42 @@ fn decode_extended(data: u8) -> Result<Opcode, DecodeError> {
         0x4f => Opcode::ComplBit(1, Register8::A),
         _ => return Err(DecodeError::UnknownExtendedOpcode(data)),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::IndexedIter;
+
+    #[test]
+    fn test_indexed_iter_empty_vec() {
+        let mut iter = IndexedIter::from_vec(Vec::<u8>::new());
+        assert_eq!(iter.index(), 0);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.index(), 0);
+    }
+
+    #[test]
+    fn test_indexed_iter_single_element_vec() {
+        let mut iter = IndexedIter::from_vec(vec![1]);
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.index(), 1);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.index(), 1);
+    }
+
+    #[test]
+    fn test_indexed_iter_multi_element_vec() {
+        let mut iter = IndexedIter::from_vec(vec![1, 2, 3]);
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.index(), 1);
+
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.index(), 2);
+
+        assert_eq!(iter.next(), Some(3));
+        assert_eq!(iter.index(), 3);
+
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.index(), 3);
+    }
 }
