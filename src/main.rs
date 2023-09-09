@@ -185,6 +185,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
     })
 }
 
+#[derive(PartialEq)]
 pub enum DecodeError {
     EndOfStream,
     UnknownOpcode(u8),
