@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use crate::DecodeError;
+
 #[derive(Debug)]
 pub enum AddrRegister {
     BC,
@@ -59,20 +61,20 @@ impl Debug for Slot {
 
 impl Slot {
     #[allow(dead_code)]
-    pub fn parse_a16(data: &[u8]) -> Self {
-        Slot::Addr16(decode_u16(data))
+    pub fn parse_a16(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
+        Ok(Slot::Addr16(decode_u16(data)?))
     }
 
-    pub fn parse_a8(data: &[u8]) -> Self {
-        Slot::Addr8(data[0])
+    pub fn parse_a8(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
+        Ok(Slot::Addr8(decode_u8(data)?))
     }
 
-    pub fn parse_d16(data: &[u8]) -> Self {
-        Slot::Data16(decode_u16(data))
+    pub fn parse_d16(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
+        Ok(Slot::Data16(decode_u16(data)?))
     }
 
-    pub fn parse_d8(data: &[u8]) -> Self {
-        Slot::Data8(data[0])
+    pub fn parse_d8(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
+        Ok(Slot::Data8(decode_u8(data)?))
     }
 
     pub fn r8(r: Register8) -> Slot {
@@ -88,10 +90,13 @@ impl Slot {
     }
 }
 
-fn decode_u16(data: &[u8]) -> u16 {
-    u16::from_le_bytes(
-        data[..2]
-            .try_into()
-            .expect("Enf of file in the middle of a constant"),
-    )
+fn decode_u8(data: &mut impl Iterator<Item = u8>) -> Result<u8, DecodeError> {
+    data.next().ok_or(DecodeError::EndOfStream)
+}
+
+fn decode_u16(data: &mut impl Iterator<Item = u8>) -> Result<u16, DecodeError> {
+    Ok(u16::from_le_bytes([
+        data.next().ok_or(DecodeError::EndOfStream)?,
+        data.next().ok_or(DecodeError::EndOfStream)?,
+    ]))
 }

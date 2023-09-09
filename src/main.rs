@@ -12,6 +12,32 @@ use annotations::{Annotation, Purpose};
 
 mod annotations;
 
+struct IndexedIter<T> {
+    it: std::vec::IntoIter<T>,
+    index: usize,
+}
+
+impl<T> Iterator for IndexedIter<T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.index += 1;
+        self.it.next()
+    }
+}
+
+impl<T> IndexedIter<T> {
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
+    pub fn from_vec(vec: Vec<T>) -> Self {
+        Self {
+            it: vec.into_iter(),
+            index: 0,
+        }
+    }
+}
 fn main() {
     let matches = Command::new("Disassembler")
         .arg(Arg::new("file").required(true))
@@ -41,14 +67,14 @@ fn disassemble(
     let empty_vec = vec![];
     let mut buf = vec![];
     file.read_to_end(&mut buf)?;
-    let mut idx: usize = 0;
+    let mut it = IndexedIter::from_vec(buf.clone());
 
-    while idx < buf.len() {
+    loop {
         let mut comment = String::new();
         let mut goto = String::new();
         let mut label = String::new();
         let mut skip = 0;
-        let annotations = annotations.get(&idx).unwrap_or(&empty_vec);
+        let annotations = annotations.get(&it.index()).unwrap_or(&empty_vec);
 
         for annotation in annotations {
             match annotation.purpose {
@@ -68,23 +94,25 @@ fn disassemble(
         if skip > 0 {
             println!(
                 "0x{:04x}-0x{:04x} {} {} {}",
-                idx,
-                idx + skip - 1,
+                it.index(),
+                it.index() + skip - 1,
                 label,
                 goto,
                 comment
             );
-            idx += skip;
+            it.nth(skip - 1);
         } else {
-            let (len, opcode) = decode(&buf[idx..]);
+            let current_index = it.index();
+            let opcode = decode(&mut it).unwrap();
             if debug {
-                print!("{:02x} ", buf[idx]);
+                print!("{:02x} ", buf[current_index]);
             }
-            println!("0x{:04x} {} {} {} {}", idx, opcode, label, goto, comment);
-            idx += len;
+            println!(
+                "0x{:04x} {} {} {} {}",
+                current_index, opcode, label, goto, comment
+            );
         }
     }
-    Ok(())
 }
 
 #[derive(Debug)]
@@ -116,51 +144,77 @@ impl Display for Opcode {
     }
 }
 
-fn decode(data: &[u8]) -> (usize, Opcode) {
+fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
+    let opcode = data.next().ok_or(DecodeError::EndOfStream)?;
     // Extended Opcodes
-    if data[0] == 0xcb {
-        return decode_extended(&data[1..]);
+    if opcode == 0xcb {
+        return decode_extended(data.next().ok_or(DecodeError::EndOfStream)?);
     }
-    match data[0] {
-        0x00 => (1, Opcode::Nop),
-        0x01 => (3, Opcode::Ld(Slot::r16(BC), Slot::parse_d16(&data[1..]))),
-        0x02 => (1, Opcode::Ld(Slot::addr(AddrRegister::BC), Slot::r8(A))),
-        0x03 => (1, Opcode::Inc16(Register16::BC)),
-        0x04 => (1, Opcode::Inc8(Register8::B)),
-        0x05 => (1, Opcode::Dec8(Register8::B)),
-        0x06 => (2, Opcode::Ld(Slot::r8(B), Slot::Data8(data[1]))),
-        0x0c => (1, Opcode::Inc8(Register8::C)),
-        0x0e => (2, Opcode::Ld(Slot::r8(C), Slot::Addr8(data[1]))),
-        0x11 => (3, Opcode::Ld(Slot::r16(DE), Slot::parse_d16(&data[1..]))),
-        0x1a => (1, Opcode::Ld(Slot::r8(A), Slot::addr(AddrRegister::DE))),
-        0x17 => (1, Opcode::RotLeft(Register8::A)),
-        0x20 => (2, Opcode::JumpNZMemOffset(data[1] as i8)),
-        0x21 => (3, Opcode::Ld(Slot::r16(HL), Slot::parse_d16(&data[1..]))),
-        0x22 => (1, Opcode::LdToMemInc(Register16::HL, Register8::A)),
-        0x31 => (3, Opcode::Ld(Slot::r16(SP), Slot::parse_d16(&data[1..]))),
-        0x32 => (1, Opcode::LdToMemDec(Register16::HL, Register8::A)),
-        0x3e => (2, Opcode::Ld(Slot::r8(A), Slot::parse_d8(&data[1..]))),
-        0x45 => (1, Opcode::Ld(Slot::r8(B), Slot::r8(L))),
-        0x46 => (1, Opcode::Ld(Slot::r8(B), Slot::addr(AddrRegister::HL))),
-        0x4c => (1, Opcode::Ld(Slot::r8(H), Slot::r8(C))),
-        0x4f => (1, Opcode::Ld(Slot::r8(C), Slot::r8(A))),
-        0x77 => (1, Opcode::Ld(Slot::addr(AddrRegister::HL), Slot::r8(A))),
-        0x7f => (1, Opcode::Ld8(Register8::A, Register8::A)),
-        0xaf => (1, Opcode::Xor(Register8::A, Register8::A)),
-        0xc1 => (1, Opcode::Pop(Register16::BC)),
-        0xc5 => (1, Opcode::Push(Register16::BC)),
-        0xcd => (3, Opcode::Call(Slot::parse_d16(&data[1..]))),
-        0xe0 => (2, Opcode::Ld(Slot::parse_a8(&data[1..]), Slot::r8(A))),
-        0xe2 => (1, Opcode::Ld(Slot::addr(AddrRegister::C), Slot::r8(A))),
-        _ => panic!("Unknown Opcode {:x}", data[0]),
+    Ok(match opcode {
+        0x00 => Opcode::Nop,
+        0x01 => Opcode::Ld(Slot::r16(BC), Slot::parse_d16(data)?),
+        0x02 => Opcode::Ld(Slot::addr(AddrRegister::BC), Slot::r8(A)),
+        0x03 => Opcode::Inc16(Register16::BC),
+        0x04 => Opcode::Inc8(Register8::B),
+        0x05 => Opcode::Dec8(Register8::B),
+        0x06 => Opcode::Ld(Slot::r8(B), Slot::parse_d8(data)?),
+        0x0c => Opcode::Inc8(Register8::C),
+        0x0e => Opcode::Ld(Slot::r8(C), Slot::parse_a8(data)?),
+        0x11 => Opcode::Ld(Slot::r16(DE), Slot::parse_d16(data)?),
+        0x1a => Opcode::Ld(Slot::r8(A), Slot::addr(AddrRegister::DE)),
+        0x17 => Opcode::RotLeft(Register8::A),
+        0x20 => Opcode::JumpNZMemOffset(data.next().ok_or(DecodeError::EndOfStream)? as i8),
+        0x21 => Opcode::Ld(Slot::r16(HL), Slot::parse_d16(data)?),
+        0x22 => Opcode::LdToMemInc(Register16::HL, Register8::A),
+        0x31 => Opcode::Ld(Slot::r16(SP), Slot::parse_d16(data)?),
+        0x32 => Opcode::LdToMemDec(Register16::HL, Register8::A),
+        0x3e => Opcode::Ld(Slot::r8(A), Slot::parse_d8(data)?),
+        0x45 => Opcode::Ld(Slot::r8(B), Slot::r8(L)),
+        0x46 => Opcode::Ld(Slot::r8(B), Slot::addr(AddrRegister::HL)),
+        0x4c => Opcode::Ld(Slot::r8(H), Slot::r8(C)),
+        0x4f => Opcode::Ld(Slot::r8(C), Slot::r8(A)),
+        0x77 => Opcode::Ld(Slot::addr(AddrRegister::HL), Slot::r8(A)),
+        0x7f => Opcode::Ld8(Register8::A, Register8::A),
+        0xaf => Opcode::Xor(Register8::A, Register8::A),
+        0xc1 => Opcode::Pop(Register16::BC),
+        0xc5 => Opcode::Push(Register16::BC),
+        0xcd => Opcode::Call(Slot::parse_d16(data)?),
+        0xe0 => Opcode::Ld(Slot::parse_a8(data)?, Slot::r8(A)),
+        0xe2 => Opcode::Ld(Slot::addr(AddrRegister::C), Slot::r8(A)),
+        _ => return Err(DecodeError::UnknownOpcode(opcode)),
+    })
+}
+
+pub enum DecodeError {
+    EndOfStream,
+    UnknownOpcode(u8),
+    UnknownExtendedOpcode(u8),
+}
+
+impl Debug for DecodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        <DecodeError as Display>::fmt(self, f)
+    }
+}
+impl Display for DecodeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EndOfStream => write!(f, "End of stream detected during opcode decoding"),
+            Self::UnknownOpcode(opcode) => write!(f, "Unknown Opcode 0x{:x}", opcode),
+            Self::UnknownExtendedOpcode(opcode) => {
+                write!(f, "Unknown Extended opcode 0x{:x}", opcode)
+            }
+        }
     }
 }
 
-fn decode_extended(data: &[u8]) -> (usize, Opcode) {
-    match data[0] {
-        0x11 => (2, Opcode::RotLeft(Register8::C)),
-        0x7c => (2, Opcode::ComplBit(7, Register8::H)),
-        0x4f => (2, Opcode::ComplBit(1, Register8::A)),
-        _ => panic!("Unknown CB Opcode {:x}", data[0]),
-    }
+impl Error for DecodeError {}
+
+fn decode_extended(data: u8) -> Result<Opcode, DecodeError> {
+    Ok(match data {
+        0x11 => Opcode::RotLeft(Register8::C),
+        0x7c => Opcode::ComplBit(7, Register8::H),
+        0x4f => Opcode::ComplBit(1, Register8::A),
+        _ => return Err(DecodeError::UnknownExtendedOpcode(data)),
+    })
 }
