@@ -34,11 +34,11 @@ impl Purpose {
 }
 
 impl Annotation {
-    pub fn parse(data: &String) -> Result<BTreeMap<usize, Vec<Annotation>>, AnnotationError> {
+    pub fn parse(data: &str) -> Result<BTreeMap<usize, Vec<Annotation>>, AnnotationError> {
         let annotations = data
             .split('\n')
             .filter(|l| !l.trim().is_empty())
-            .map(Annotation::from)
+            .map(Annotation::from_line)
             .collect::<Result<Vec<Annotation>, AnnotationError>>()?;
 
         Ok(annotations
@@ -56,6 +56,19 @@ impl Annotation {
         let mut tmp = String::new();
         File::open(file_name).and_then(|mut f| f.read_to_string(&mut tmp))?;
         Self::parse(&tmp)
+    }
+
+    fn from_line(line: &str) -> Result<Self, AnnotationError> {
+        let items: Vec<&str> = line.splitn(3, ' ').collect();
+        if items.len() != 3 {
+            Err(AnnotationError::MissingField)
+        } else {
+            Ok(Annotation {
+                location: usize::from_str_radix(items[0].trim_start_matches("0x"), 16)?,
+                purpose: Purpose::from_char(items[1])?,
+                value: items[2].to_string(),
+            })
+        }
     }
 }
 
@@ -89,6 +102,7 @@ impl From<std::io::Error> for AnnotationError {
         AnnotationError::IOError(value)
     }
 }
+
 impl Display for AnnotationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -96,21 +110,6 @@ impl Display for AnnotationError {
             Self::InvalidMnemonic(m) => write!(f, "Invalid Mnemonic {}", m),
             Self::IOError(err) => write!(f, "IO Error {}", err),
             Self::ParseError(err) => write!(f, "Parse error: {}", err),
-        }
-    }
-}
-
-impl Annotation {
-    fn from(line: &str) -> Result<Self, AnnotationError> {
-        let items: Vec<&str> = line.splitn(3, ' ').collect();
-        if items.len() != 3 {
-            Err(AnnotationError::MissingField)
-        } else {
-            Ok(Annotation {
-                location: usize::from_str_radix(items[0].trim_start_matches("0x"), 16)?,
-                purpose: Purpose::from_char(items[1])?,
-                value: items[2].to_string(),
-            })
         }
     }
 }
@@ -142,13 +141,13 @@ mod tests {
             purpose: Purpose::Comment,
             value: "some comment".to_string(),
         };
-        assert_eq!(Annotation::from(line).unwrap(), expected);
+        assert_eq!(Annotation::from_line(line).unwrap(), expected);
     }
 
     #[test]
     fn test_annotation_from_invalid_line() {
         let line = "0x1234 C";
-        assert!(Annotation::from(line).is_err());
+        assert!(Annotation::from_line(line).is_err());
     }
 
     #[test]
