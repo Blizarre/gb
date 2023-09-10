@@ -46,7 +46,7 @@ fn disassemble(
     loop {
         let mut comment = String::new();
         let mut goto = String::new();
-        let mut label = String::new();
+        let mut label = None;
         let mut skip = 0;
         let annotations = annotations.get(&it.index()).unwrap_or(&empty_vec);
 
@@ -54,9 +54,9 @@ fn disassemble(
             match annotation.purpose {
                 Purpose::Comment => comment = format!(" ; {}", &annotation.value),
                 Purpose::Goto => goto = format!("-> {}", &annotation.value),
-                Purpose::Label => label = format!(":{}", &annotation.value),
+                Purpose::Label => label = Some(annotation.value.to_string()),
                 Purpose::Section => {
-                    println!("-- {} --", annotation.value)
+                    println!("\n-- {} --", annotation.value)
                 }
                 Purpose::Data => {
                     skip = usize::from_str_radix(annotation.value.trim_start_matches("0x"), 16)
@@ -65,12 +65,14 @@ fn disassemble(
             }
         }
 
+        if let Some(l) = label {
+            println!("{}:", l);
+        }
         if skip > 0 {
             println!(
-                "0x{:04x}-0x{:04x} {} {} {}",
+                "Skip 0x{:04x}-0x{:04x} {} {}",
                 it.index(),
                 it.index() + skip - 1,
-                label,
                 goto,
                 comment
             );
@@ -83,8 +85,8 @@ fn disassemble(
                 print!("{:02x} ", data[current_index]);
             }
             println!(
-                "0x{:04x} {} {} {} {}",
-                current_index, opcode, label, goto, comment
+                "    0x{:04x} {} {} {}",
+                current_index, opcode, goto, comment
             );
         }
     }
@@ -97,7 +99,7 @@ enum Opcode {
     Ld(Slot, Slot),
     Call(Slot),
     Inc(Slot),
-    Dec8(Register8),
+    Dec(Slot),
     LdToMemDec(Register16, Register8),
     LdToMemInc(Register16, Register8),
     RotLeft(Register8),
@@ -111,6 +113,10 @@ enum Opcode {
 impl Display for Opcode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Opcode::Dec(from) => write!(f, "DEC {:?}", from),
+            Opcode::Inc(from) => write!(f, "INC {:?}", from),
+            Opcode::Push(from) => write!(f, "PUSH {:?}", from),
+            Opcode::Pop(to) => write!(f, "POP {:?}", to),
             Opcode::Ld(to, from) => write!(f, "LD {:?} {:?}", to, from),
             Opcode::Call(slot) => write!(f, "CALL {:?}", slot),
             _ => write!(f, "{:?}", self),
@@ -130,7 +136,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x02 => Opcode::Ld(Slot::addr(AddrRegister::BC), Slot::r8(A)),
         0x03 => Opcode::Inc(Slot::r16(Register16::BC)),
         0x04 => Opcode::Inc(Slot::r8(Register8::B)),
-        0x05 => Opcode::Dec8(Register8::B),
+        0x05 => Opcode::Dec(Slot::r8(Register8::B)),
         0x06 => Opcode::Ld(Slot::r8(B), Slot::parse_d8(data)?),
         0x0c => Opcode::Inc(Slot::r8(Register8::C)),
         0x0e => Opcode::Ld(Slot::r8(C), Slot::parse_a8(data)?),

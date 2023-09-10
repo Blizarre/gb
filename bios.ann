@@ -9,13 +9,26 @@
 0x18 C Set value 0xf3 at 0xFF12 (Configure Channel 1 Volume Envelope)
 0x19 C Set value 0xf3 at 0xFF25 (Selection of Sound output terminal (R/W))
 0x1c C Set value 0x77 at 0xFF24 (Channel control / ON-OFF / Volume (R/W))
-0x1d S Palette?
+0x1d S Setting the Palette
 0x1f C Set value 0xfc at 0xFF47 (BGP - BG Palette Data (R/W) - Idx 0 is white, others are black)
-0x21 C 0x0104 is the address of the beginning of the Nintendo logo in the cartridge
-0x24 C 0x8010 is inside VRAM
+0x21 S Uncompressing the nintendo logo from the cartridge into VRAM
+0x21 C 0x0104 address of the beginning of the Nintendo logo in the cartridge
+0x24 C 0x8010 VRAM
 0x27 C Load the first character of the logo into A
-0x28 G Something
+0x28 G decode_byte_first_half
+0x29 G decode_byte_second_half
 0x2b D 0x6a
-0x29 C Unknown data
-0x96 L where
-0xa1 G where
+0x95 L decode_byte_first_half
+0x95 C Reset C to the compressed value
+0x96 L decode_byte_second_half
+0x96 C Number of bits to extract from C into A
+0x98 L next_bit
+0x98 C Save B and C
+0x99 C Take most significant bit of C into carry
+0x9b C Move carry into the Least significant bit of A
+0x9c C Restore B and C (bring back MSB of C)
+0x9d C Do again as before
+0x9f C Now the MSB of C is doubled into A
+0xa1 C Duplicate the next bit in C into A (until we have done this block of 4 and B is 0)
+0xa3 C Copy the decompressed byte into RAM twice (A skip A skip ? why skip both?)
+0xa1 G next_bit
