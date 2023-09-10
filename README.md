@@ -1,11 +1,11 @@
 # GB disassembler
 
-The long-term goal is to build an emulator for the Game Boy. But as a first step, I am going to build a disassembler to reverse engineer the Gameboy BIOS
+The long-term goal is to build an emulator for the Game Boy. But as a first step, I am going to build a disassembler to reverse engineer the Gameboy Boot ROM
 
-## Gameboy BIOS
+## Gameboy Boot ROM
 
-- The BIOS I am disassembling has the md5 `32fbbd84168d3482956eb3c5051637f5` and should be the [DMG](https://gbdev.io/pandocs/Power_Up_Sequence.html) version.
-- See `bios.ann` for the annotations
+- The Boot rom I am disassembling has the md5 `32fbbd84168d3482956eb3c5051637f5` and should be the [DMG](https://gbdev.io/pandocs/Power_Up_Sequence.html) version.
+- See `boot.ann` for the annotations
 
 ### Annotations
 
@@ -25,7 +25,7 @@ The annotation file has a simple format:
 Run this command to display the disassembled code with the annotations:
 
 ```shell
-cargo run bios.gb bios.ann
+cargo run boot.gb boot.ann
 ```
 
 # Resources
@@ -39,12 +39,12 @@ Opcodes: https://meganesu.github.io/generate-gb-opcodes/
 - Memory layout: https://gbdev.io/pandocs/Memory_Map.html
 
 ## Registers
-Since I am reverse-engineering the bios, it is handy to have a list of all special memory mapped addresses. This list has been made based on  http://bgb.bircd.org/pandocs.htm
+Since I am reverse-engineering the boot rom, it is handy to have a list of all special memory mapped addresses. This list has been made based on  http://bgb.bircd.org/pandocs.htm
 
 
 ```
 0000-3FFF   16KB ROM Bank 00     (in cartridge, fixed at bank 00)
- - BIOS (during boot): 0000-00ff
+ - BOOT rom (during boot): 0000-00ff
  - Jump vectors (RST): 0000,0008,0010,0018,0020,0028,0030,0038
  - Jump vectors (Interrupts): 0040,0048,0050,0058,0060
  - Cartridge header: 0100-014F
