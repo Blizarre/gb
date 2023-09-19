@@ -14,10 +14,19 @@
 0x21 S Uncompressing the nintendo logo from the cartridge into VRAM
 0x21 C 0x0104 address of the beginning of the Nintendo logo in the cartridge
 0x24 C 0x8010 VRAM
-0x27 C Load the first character of the logo into A
+0x27 L uncompress_logo
+0x27 C Load the current character of the logo into A
+0x28 C Decode the first 4 bits of the current logo byte into VRAM
 0x28 G decode_byte_first_half
-0x29 G decode_byte_second_half
-0x2b D 0x6a
+0x2b C Decode the last 4 bits of the current logo byte into VRAM
+0x2b G decode_byte_second_half
+0x2e C Move on to the next byte
+0x30 C Check if we have finished to load the logo (all 48 bytes)
+0x32 G uncompress_logo
+0x34 S Copy some extra data (uncompressed) from the cartridge into VRAM
+0x39 L copy_next_byte
+0x3e G copy_next_byte
+0x40 S Next part
 0x95 L decode_byte_first_half
 0x95 C Reset C to the compressed value
 0x96 L decode_byte_second_half
