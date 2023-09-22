@@ -13,6 +13,7 @@ pub enum AddrRegister {
 #[allow(dead_code)]
 #[derive(Debug, PartialEq)]
 pub enum Register16 {
+    AF,
     BC,
     DE,
     FG,
