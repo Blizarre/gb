@@ -92,7 +92,7 @@ fn disassemble(
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 enum Opcode {
     Nop,
     Halt,
@@ -111,7 +111,7 @@ enum Opcode {
     Xor(Register8, Register8),
     ComplBit(u8, Register8),
     Jump(i8),
-    JumpRZ(i8),
+    JumpRZMemOffset(i8),
     JumpNZMemOffset(i8),
 }
 
@@ -135,6 +135,31 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
     // Extended Opcodes
     if opcode == 0xcb {
         return decode_extended(data.next().ok_or(DecodeError::EndOfStream)?);
+    }
+
+    if (0x40..0x80).contains(&opcode) {
+        // Inside this range the arguments for the Ld Opcode
+        // repeat in a specific pattern: BB, BC, BD... CB, CC, CD... AB
+        // AC, AD, ...until AA. The first 3 bits represent the destination
+        // and the last 3 represent the source.
+
+        // Ld (HL), (HL) is a specific case replaced by Halt
+        if opcode == 0x76 {
+            return Ok(Opcode::Halt);
+        }
+
+        let address = (opcode - 0x40) as usize;
+        let mapping = [
+            Slot::r8(B),
+            Slot::r8(C),
+            Slot::r8(D),
+            Slot::r8(E),
+            Slot::r8(H),
+            Slot::r8(L),
+            Slot::AddrRegister(AddrRegister::HL),
+            Slot::r8(A),
+        ];
+        return Ok(Opcode::Ld(mapping[address >> 3], mapping[address & 0x7]));
     }
     Ok(match opcode {
         0x00 => Opcode::Nop,
@@ -165,7 +190,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x23 => Opcode::Inc(Slot::r16(HL)),
         0x24 => Opcode::Inc(Slot::r8(H)),
         0x25 => Opcode::Dec(Slot::r8(H)),
-        0x28 => Opcode::JumpRZ(data.next().ok_or(DecodeError::EndOfStream)? as i8),
+        0x28 => Opcode::JumpRZMemOffset(data.next().ok_or(DecodeError::EndOfStream)? as i8),
         0x2e => Opcode::Ld(Slot::r8(L), Slot::parse_d8(data)?),
         0x31 => Opcode::Ld(Slot::r16(SP), Slot::parse_d16(data)?),
         0x32 => Opcode::LdToMemDec(HL, A),
@@ -173,31 +198,6 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x35 => Opcode::Dec(Slot::AddrRegister(AddrRegister::HL)),
         0x3d => Opcode::Dec(Slot::r8(A)),
         0x3e => Opcode::Ld(Slot::r8(A), Slot::parse_d8(data)?),
-        0x45 => Opcode::Ld(Slot::r8(B), Slot::r8(L)),
-        0x46 => Opcode::Ld(Slot::r8(B), Slot::addr(AddrRegister::HL)),
-        0x4c => Opcode::Ld(Slot::r8(H), Slot::r8(C)),
-        0x4f => Opcode::Ld(Slot::r8(C), Slot::r8(A)),
-        0x57 => Opcode::Ld(Slot::r8(D), Slot::r8(A)),
-        0x58 => Opcode::Ld(Slot::r8(E), Slot::r8(B)),
-        0x59 => Opcode::Ld(Slot::r8(E), Slot::r8(C)),
-        0x5a => Opcode::Ld(Slot::r8(E), Slot::r8(D)),
-        0x5b => Opcode::Ld(Slot::r8(E), Slot::r8(E)),
-        0x5c => Opcode::Ld(Slot::r8(E), Slot::r8(H)),
-        0x5d => Opcode::Ld(Slot::r8(E), Slot::r8(L)),
-        0x5e => Opcode::Ld(Slot::r8(E), Slot::AddrRegister(AddrRegister::HL)),
-        0x5f => Opcode::Ld(Slot::r8(E), Slot::r8(A)),
-        0x67 => Opcode::Ld(Slot::r8(H), Slot::r8(A)),
-        0x75 => Opcode::Ld(Slot::AddrRegister(AddrRegister::HL), Slot::r8(L)),
-        0x76 => Opcode::Halt,
-        0x77 => Opcode::Ld(Slot::AddrRegister(AddrRegister::HL), Slot::r8(A)),
-        0x78 => Opcode::Ld(Slot::r8(A), Slot::r8(B)),
-        0x79 => Opcode::Ld(Slot::r8(A), Slot::r8(C)),
-        0x7a => Opcode::Ld(Slot::r8(A), Slot::r8(D)),
-        0x7b => Opcode::Ld(Slot::r8(A), Slot::r8(E)),
-        0x7c => Opcode::Ld(Slot::r8(A), Slot::r8(H)),
-        0x7d => Opcode::Ld(Slot::r8(A), Slot::r8(L)),
-        0x7e => Opcode::Ld(Slot::r8(A), Slot::AddrRegister(AddrRegister::HL)),
-        0x7f => Opcode::Ld(Slot::r8(A), Slot::r8(A)),
         0x90 => Opcode::Sub(Slot::r8(B)),
         0x91 => Opcode::Sub(Slot::r8(C)),
         0x92 => Opcode::Sub(Slot::r8(D)),
@@ -254,4 +254,36 @@ fn decode_extended(data: u8) -> Result<Opcode, DecodeError> {
         0x4f => Opcode::ComplBit(1, A),
         _ => return Err(DecodeError::UnknownExtendedOpcode(data)),
     })
+}
+
+#[cfg(test)]
+mod test {
+    use super::decode;
+    use super::{slots::AddrRegister, slots::Slot, Opcode, Register8::*};
+
+    #[test]
+    fn decode_ld_band() {
+        assert_eq!(
+            decode(&mut [0x40u8].iter().copied()).unwrap(),
+            Opcode::Ld(Slot::Register8(B), Slot::Register8(B))
+        );
+        assert_eq!(
+            decode(&mut [0x5fu8].iter().copied()).unwrap(),
+            Opcode::Ld(Slot::Register8(E), Slot::Register8(A))
+        );
+        assert_eq!(
+            decode(&mut [0x66u8].iter().copied()).unwrap(),
+            Opcode::Ld(Slot::Register8(H), Slot::AddrRegister(AddrRegister::HL),)
+        );
+        assert_eq!(
+            decode(&mut [0x68u8].iter().copied()).unwrap(),
+            Opcode::Ld(Slot::Register8(L), Slot::Register8(B)),
+        );
+
+        assert_eq!(
+            decode(&mut [0x7du8].iter().copied()).unwrap(),
+            Opcode::Ld(Slot::Register8(A), Slot::Register8(L)),
+        );
+        assert_eq!(decode(&mut [0x76u8].iter().copied()).unwrap(), Opcode::Halt);
+    }
 }

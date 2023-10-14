@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use crate::DecodeError;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum AddrRegister {
     BC,
     DE,
@@ -11,7 +11,7 @@ pub enum AddrRegister {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Register16 {
     AF,
     BC,
@@ -22,7 +22,7 @@ pub enum Register16 {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone, Copy)]
 pub enum Register8 {
     A,
     B,
@@ -36,7 +36,7 @@ pub enum Register8 {
 }
 
 #[allow(dead_code)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Slot {
     AddrRegister(AddrRegister),
     Register16(Register16),
