@@ -84,6 +84,19 @@ fn disassemble(
             if debug {
                 print!("{:02x} ", data[current_index]);
             }
+            // Display the destination address of a jump if it has not been provided
+            goto = if goto.is_empty() {
+                let fmt_offset = |offset| format!("-> 0x{:x}", it.index() as isize + offset as isize);
+                match opcode {
+                    Opcode::Jump(offset) => fmt_offset(offset),
+                    Opcode::JumpRNZMemOffset(offset) => fmt_offset(offset),
+                    Opcode::JumpRZMemOffset(offset) => fmt_offset(offset),
+                    _ => String::new(),
+                }
+            } else {
+                goto
+            };
+
             println!(
                 "    0x{:04x} {} {} {}",
                 current_index, opcode, goto, comment
@@ -112,7 +125,7 @@ enum Opcode {
     ComplBit(u8, Register8),
     Jump(i8),
     JumpRZMemOffset(i8),
-    JumpNZMemOffset(i8),
+    JumpRNZMemOffset(i8),
 }
 
 impl Display for Opcode {
@@ -186,7 +199,7 @@ fn decode(data: &mut impl Iterator<Item = u8>) -> Result<Opcode, DecodeError> {
         0x1c => Opcode::Inc(Slot::r8(E)),
         0x1d => Opcode::Dec(Slot::r8(E)),
         0x1e => Opcode::Ld(Slot::r8(E), Slot::parse_d8(data)?),
-        0x20 => Opcode::JumpNZMemOffset(data.next().ok_or(DecodeError::EndOfStream)? as i8),
+        0x20 => Opcode::JumpRNZMemOffset(data.next().ok_or(DecodeError::EndOfStream)? as i8),
         0x21 => Opcode::Ld(Slot::r16(HL), Slot::parse_d16(data)?),
         0x22 => Opcode::LdToMemInc(HL, A),
         0x23 => Opcode::Inc(Slot::r16(HL)),

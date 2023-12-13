@@ -15,7 +15,7 @@
 0x21 C 0x0104 address of the beginning of the Nintendo logo in the cartridge
 0x24 C 0x8010 VRAM
 0x27 L uncompress_logo
-0x27 C Load the current character of the logo into A
+0x27 C Load the current byte of the logo into A
 0x28 C Decode the first 4 bits of the current logo byte into VRAM
 0x28 G decode_byte_first_half
 0x2b C Decode the last 4 bits of the current logo byte into VRAM
@@ -23,13 +23,37 @@
 0x2e C Move on to the next byte
 0x30 C Check if we have finished to load the logo (all 48 bytes)
 0x32 G uncompress_logo
-0x34 S Copy 8 Bytes, every 2 bytes from the cartridge into VRAM
+0x34 S Copy 8 more Bytes from the cartridge into VRAM
 0x34 C The starting point
 0x37 C The number of bytes
-0x3b C We copy the content of the cartdrige into HL and then INC HL twice (like for the logo above)
+0x3b C We copy the content of the cartdrige into HL and then INC HL twice (see logo above: We only set the LSB -first byte- for each tile?)
 0x39 L copy_next_byte
 0x3e G copy_next_byte
-0x40 S Next part
+0x40 S Setting the background map (#2)
+0x40 C tile_id: Id of the tile
+0x42 C Setting the tile data manually for 0x9910
+0x45 C Loading the location of the tile data in memory
+0x48 L next_tile_id 
+0x48 C numtile: Number of identical tiles to set to tile_id
+0x4a L next_tile
+0x4b G End
+0x4b C Are we done with the elements?
+0x4d C Set the tile to tile_id
+0x4f G next_tile
+0x51 C We update the lower HL so that we update tile at 0x990f now
+0x53 G next_tile_id
+0x55 L End
+0x55 S Scrolling
+0x55 C Scrolling (H) = 0
+0x58 C loop idx D = 0x64
+0x59 C Set SCY (0xff42 - Scroll Y) to 0x64
+0x5d C Set LCDC (0xff40) to 0x91 (Enable LCD, Configure data banks and Background)
+0x5f C B is now 1
+0x64 L wait_until_vblank
+0x64 C Loading LCDC Y-Coordinate (0xff40), column being transferred to the LCD driver
+0x66 C Checking if we are at the beginning of VBlank (LY=144)
+0x68 C If that's not the case we move back
+0x68 G wait_until_vblank
 0x95 L decode_byte_first_half
 0x95 C Reset C to the compressed value
 0x96 L decode_byte_second_half
@@ -42,5 +66,5 @@
 0x9d C Do again as before
 0x9f C Now the MSB of C is doubled into A
 0xa1 C Duplicate the next bit in C into A (until we have done this block of 4 and B is 0)
-0xa3 C Copy the decompressed byte into RAM twice (A skip A skip ? why skip both?)
+0xa3 C Copy the decompressed byte into RAM twice (A skip A skip: double each pixel, each made of the original value and 0)
 0xa1 G next_bit
