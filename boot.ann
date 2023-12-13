@@ -23,7 +23,10 @@
 0x2e C Move on to the next byte
 0x30 C Check if we have finished to load the logo (all 48 bytes)
 0x32 G uncompress_logo
-0x34 S Copy some extra data (uncompressed) from the cartridge into VRAM
+0x34 S Copy 8 Bytes, every 2 bytes from the cartridge into VRAM
+0x34 C The starting point
+0x37 C The number of bytes
+0x3b C We copy the content of the cartdrige into HL and then INC HL twice (like for the logo above)
 0x39 L copy_next_byte
 0x3e G copy_next_byte
 0x40 S Next part

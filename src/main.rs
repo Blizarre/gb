@@ -125,6 +125,8 @@ impl Display for Opcode {
             Opcode::Pop(to) => write!(f, "POP {:?}", to),
             Opcode::Ld(to, from) => write!(f, "LD {:?} {:?}", to, from),
             Opcode::Call(slot) => write!(f, "CALL {:?}", slot),
+            Opcode::LdToMemInc(to, from) => write!(f, "LD ({:?}++) {:?}", to, from),
+            Opcode::LdToMemDec(to, from) => write!(f, "LD ({:?}--) {:?}", to, from),
             _ => write!(f, "{:?}", self),
         }
     }
