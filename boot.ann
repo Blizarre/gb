@@ -26,7 +26,13 @@
 0x34 S Copy some extra data (uncompressed) from the cartridge into VRAM
 0x39 L copy_next_byte
 0x3e G copy_next_byte
-0x40 S Next part
+0x40 S Loop over 25 pixels
+0x45 L more
+0x4b G end_loop
+0x48 L back
+0x4a G back
+0x55 L end_loop
+0x53 G more
 0x95 L decode_byte_first_half
 0x95 C Reset C to the compressed value
 0x96 L decode_byte_second_half
