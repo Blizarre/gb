@@ -20,6 +20,8 @@ The annotation file has a simple format:
 - PURPOSE can be C (comment), G (goto, jump), L (label for a jump), S (section). Section text will appear before the line.
 - VALUE is what will be displayed for the current OPCODE
 
+Lines starting with `#` are ignored.
+
 ### Disassemble
 
 Run this command to display the disassembled code with the annotations:

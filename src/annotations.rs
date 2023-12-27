@@ -38,6 +38,7 @@ impl Annotation {
         let annotations = data
             .split('\n')
             .filter(|l| !l.trim().is_empty())
+            .filter(|l| !l.starts_with('#'))
             .map(Annotation::from_line)
             .collect::<Result<Vec<Annotation>, AnnotationError>>()?;
 

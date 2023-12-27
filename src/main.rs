@@ -86,7 +86,8 @@ fn disassemble(
             }
             // Display the destination address of a jump if it has not been provided
             goto = if goto.is_empty() {
-                let fmt_offset = |offset| format!("-> 0x{:x}", it.index() as isize + offset as isize);
+                let fmt_offset =
+                    |offset| format!("-> 0x{:x}", it.index() as isize + offset as isize);
                 match opcode {
                     Opcode::Jump(offset) => fmt_offset(offset),
                     Opcode::JumpRNZMemOffset(offset) => fmt_offset(offset),
@@ -140,6 +141,7 @@ impl Display for Opcode {
             Opcode::Call(slot) => write!(f, "CALL {:?}", slot),
             Opcode::LdToMemInc(to, from) => write!(f, "LD ({:?}++) {:?}", to, from),
             Opcode::LdToMemDec(to, from) => write!(f, "LD ({:?}--) {:?}", to, from),
+            Opcode::Sub(from) => write!(f, "SUB A,{:?}", from),
             _ => write!(f, "{:?}", self),
         }
     }
