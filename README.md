@@ -27,7 +27,7 @@ Lines starting with `#` are ignored.
 Run this command to display the disassembled code with the annotations:
 
 ```shell
-cargo run boot.gb boot.ann
+cargo run --bin disassemble boot.gb boot.ann
 ```
 
 # Resources

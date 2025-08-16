@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::DecodeError;
+use crate::decoder::DecodeError;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum AddrRegister {
