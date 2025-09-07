@@ -79,6 +79,10 @@ impl Memory {
     pub fn get(&self, pc: u16) -> u8 {
         self.0[pc as usize]
     }
+
+    pub fn set(&mut self, pc: u16, value: u8) {
+        self.0[pc as usize] = value
+    }
 }
 
 fn fetch(data: &Memory, pc: &mut u16) -> u8 {
