@@ -5,8 +5,7 @@ use std::{error::Error, fs::File, io::Read};
 extern crate gb;
 
 use gb::annotations::{Annotation, Purpose};
-use gb::decoder::{decode, Opcode};
-use gb::indexediter::IndexedIter;
+use gb::decoder::{decode, Memory, Opcode};
 
 fn main() {
     let matches = Command::new("Disassembler")
@@ -35,14 +34,15 @@ fn disassemble(
     debug: bool,
 ) -> Result<(), Box<dyn Error + 'static>> {
     let empty_vec = vec![];
-    let mut it = IndexedIter::from_vec(data.clone());
+    let mut index = 0u16;
+    let memory = Memory::from_raw(&data)?;
 
     loop {
         let mut comment = String::new();
         let mut goto = String::new();
         let mut label = None;
-        let mut skip = 0;
-        let annotations = annotations.get(&it.index()).unwrap_or(&empty_vec);
+        let mut skip = 0u16;
+        let annotations = annotations.get(&(index as usize)).unwrap_or(&empty_vec);
 
         for annotation in annotations {
             match annotation.purpose {
@@ -53,8 +53,8 @@ fn disassemble(
                     println!("\n-- {} --", annotation.value)
                 }
                 Purpose::Data => {
-                    skip = usize::from_str_radix(annotation.value.trim_start_matches("0x"), 16)
-                        .unwrap();
+                    skip =
+                        u16::from_str_radix(annotation.value.trim_start_matches("0x"), 16).unwrap();
                 }
             }
         }
@@ -65,23 +65,23 @@ fn disassemble(
         if skip > 0 {
             println!(
                 "Skip 0x{:04x}-0x{:04x} {} {}",
-                it.index(),
-                it.index() + skip - 1,
+                index,
+                index + skip - 1,
                 goto,
                 comment
             );
-            it.nth(skip - 1);
+            index += skip - 1;
         } else {
-            let current_index = it.index();
+            let current_index = index;
 
-            let opcode = decode(&mut it).unwrap();
+            let opcode = decode(&memory, &mut index).unwrap();
             if debug {
-                print!("{:02x} ", data[current_index]);
+                print!("{:02x} ", memory.get(current_index));
             }
             // Display the destination address of a jump if it has not been provided
             goto = if goto.is_empty() {
                 let fmt_offset =
-                    |offset| format!("-> 0x{:x}", it.index() as isize + offset as isize);
+                    |offset| format!("-> 0x{:x}", current_index as isize + offset as isize);
                 match opcode {
                     Opcode::Jump(offset) => fmt_offset(offset),
                     Opcode::JumpRNZMemOffset(offset) => fmt_offset(offset),

@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use crate::decoder::DecodeError;
+use crate::decoder::Memory;
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum AddrRegister {
@@ -16,7 +16,6 @@ pub enum Register16 {
     AF,
     BC,
     DE,
-    FG,
     HL,
     SP,
 }
@@ -30,7 +29,6 @@ pub enum Register8 {
     D,
     E,
     F,
-    G,
     L,
     H,
 }
@@ -63,20 +61,20 @@ impl Debug for Slot {
 
 impl Slot {
     #[allow(dead_code)]
-    pub fn parse_a16(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
-        Ok(Slot::Addr16(decode_u16(data)?))
+    pub fn parse_a16(data: &Memory, pc: &mut u16) -> Self {
+        Slot::Addr16(decode_u16(data, pc))
     }
 
-    pub fn parse_a8(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
-        Ok(Slot::Addr8(decode_u8(data)?))
+    pub fn parse_a8(data: &Memory, pc: &mut u16) -> Self {
+        Slot::Addr8(decode_u8(data, pc))
     }
 
-    pub fn parse_d16(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
-        Ok(Slot::Data16(decode_u16(data)?))
+    pub fn parse_d16(data: &Memory, pc: &mut u16) -> Self {
+        Slot::Data16(decode_u16(data, pc))
     }
 
-    pub fn parse_d8(data: &mut impl Iterator<Item = u8>) -> Result<Self, DecodeError> {
-        Ok(Slot::Data8(decode_u8(data)?))
+    pub fn parse_d8(data: &Memory, pc: &mut u16) -> Self {
+        Slot::Data8(decode_u8(data, pc))
     }
 
     pub fn r8(r: Register8) -> Slot {
@@ -92,47 +90,56 @@ impl Slot {
     }
 }
 
-fn decode_u8(data: &mut impl Iterator<Item = u8>) -> Result<u8, DecodeError> {
-    data.next().ok_or(DecodeError::EndOfStream)
+fn decode_u8(data: &Memory, pc: &mut u16) -> u8 {
+    let value = data.get(*pc);
+    *pc += 1;
+    value
 }
 
-fn decode_u16(data: &mut impl Iterator<Item = u8>) -> Result<u16, DecodeError> {
-    Ok(u16::from_le_bytes([
-        data.next().ok_or(DecodeError::EndOfStream)?,
-        data.next().ok_or(DecodeError::EndOfStream)?,
-    ]))
+fn decode_u16(data: &Memory, pc: &mut u16) -> u16 {
+    let value = u16::from_le_bytes([data.get(*pc), data.get(*pc + 1u16)]);
+    *pc += 2;
+    value
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn create_memory(raw_data: &[u8]) -> Memory {
+        Memory::from_raw(raw_data).unwrap()
+    }
+
     #[test]
     fn test_slot_parse_a16() {
-        let mut data = vec![0x12, 0x34].into_iter();
-        assert_eq!(Slot::parse_a16(&mut data), Ok(Slot::Addr16(0x3412)));
-        assert_eq!(Slot::parse_a16(&mut data), Err(DecodeError::EndOfStream));
+        let mut data = create_memory(&[0x12, 0x34]);
+        let mut pc = 0;
+        assert_eq!(Slot::parse_a16(&mut data, &mut pc), Slot::Addr16(0x3412));
+        assert_eq!(pc, 2);
     }
 
     #[test]
     fn test_slot_parse_a8() {
-        let mut data = vec![0x12].into_iter();
-        assert_eq!(Slot::parse_a8(&mut data), Ok(Slot::Addr8(0x12)));
-        assert_eq!(Slot::parse_a8(&mut data), Err(DecodeError::EndOfStream));
+        let mut data = create_memory(&[0x12]);
+        let mut pc = 0;
+        assert_eq!(Slot::parse_a8(&mut data, &mut pc), Slot::Addr8(0x12));
+        assert_eq!(pc, 1);
     }
 
     #[test]
     fn test_slot_parse_d16() {
-        let mut data = vec![0x12, 0x34].into_iter();
-        assert_eq!(Slot::parse_d16(&mut data), Ok(Slot::Data16(0x3412)));
-        assert_eq!(Slot::parse_d16(&mut data), Err(DecodeError::EndOfStream));
+        let mut data = create_memory(&[0x12, 0x34]);
+        let mut pc = 0;
+        assert_eq!(Slot::parse_d16(&mut data, &mut pc), Slot::Data16(0x3412));
+        assert_eq!(pc, 2);
     }
 
     #[test]
     fn test_slot_parse_d8() {
-        let mut data = vec![0x12].into_iter();
-        assert_eq!(Slot::parse_d8(&mut data), Ok(Slot::Data8(0x12)));
-        assert_eq!(Slot::parse_d8(&mut data), Err(DecodeError::EndOfStream));
+        let mut data = create_memory(&[0x12]);
+        let mut pc = 0;
+        assert_eq!(Slot::parse_d8(&mut data, &mut pc), Slot::Data8(0x12));
+        assert_eq!(pc, 1);
     }
 
     #[test]
