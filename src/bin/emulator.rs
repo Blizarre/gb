@@ -8,6 +8,7 @@ use clap::{Arg, ArgAction, Command};
 
 extern crate gb;
 use gb::decoder::Memory;
+use gb::slots::AddrRegister;
 use gb::slots::Register16;
 use gb::{
     decoder::{decode, Opcode},
@@ -60,19 +61,24 @@ impl Display for Registers {
 
 impl Registers {
     fn af(&self) -> u16 {
-        (self.a as u16) << 8 & self.f as u16
+        (self.a as u16) << 8 | self.f as u16
     }
 
     fn bc(&self) -> u16 {
-        (self.b as u16) << 8 & self.c as u16
+        (self.b as u16) << 8 | self.c as u16
     }
 
     fn de(&self) -> u16 {
-        (self.d as u16) << 8 & self.e as u16
+        (self.d as u16) << 8 | self.e as u16
     }
 
     fn hl(&self) -> u16 {
-        (self.h as u16) << 8 & self.l as u16
+        (self.h as u16) << 8 | self.l as u16
+    }
+
+    fn set_hl(&mut self, val: u16) {
+        self.h = (val >> 8) as u8;
+        self.l = (val & 0xFF) as u8;
     }
 }
 
@@ -86,6 +92,7 @@ fn run(bios: &[u8], _debug: bool) -> Result<()> {
         println!("Code: {}", code);
         execute(code, &mut registers, &mut memory, &mut clock)?;
         println!("Registers: {}", registers);
+        println!();
     }
 }
 
@@ -132,7 +139,22 @@ fn set_value(slot: Slot, registers: &mut Registers, memory: &mut Memory, value: 
             Register8::L => registers.l = value as u8,
             Register8::F => bail!("Cannot set value to register F"),
         },
-        Slot::AddrRegister(_addr_register) => todo!(),
+        Slot::AddrRegister(addr_register) => {
+            match addr_register {
+                AddrRegister::BC => {
+                    memory.set(registers.bc(), value as u8);
+                }
+                AddrRegister::DE => {
+                    memory.set(registers.de(), value as u8);
+                }
+                AddrRegister::HL => {
+                    memory.set(registers.hl(), value as u8);
+                }
+                AddrRegister::C => {
+                    memory.set(registers.c as u16 + 0xFF00, value as u8);
+                }
+            };
+        }
         Slot::Register16(register) => match register {
             gb::slots::Register16::AF => bail!("Cannot set value to register AF"),
             gb::slots::Register16::BC => {
@@ -186,6 +208,26 @@ fn execute(
             }
             let value = fetch_value(from, registers, memory);
             set_value(to, registers, memory, value)?;
+        }
+        Opcode::LdDec(from) => {
+            let value = fetch_value(Slot::Register8(from), registers, memory);
+            set_value(
+                Slot::AddrRegister(AddrRegister::HL),
+                registers,
+                memory,
+                value,
+            )?;
+            registers.set_hl(registers.hl() - 1);
+        }
+        Opcode::LdInc(from) => {
+            let value = fetch_value(Slot::Register8(from), registers, memory);
+            set_value(
+                Slot::AddrRegister(AddrRegister::HL),
+                registers,
+                memory,
+                value,
+            )?;
+            registers.set_hl(registers.hl() + 1);
         }
         _ => bail!("Unknown Opcode {}", code),
     };
