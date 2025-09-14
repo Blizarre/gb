@@ -49,11 +49,30 @@
 0x59 C Set SCY (0xff42 - Scroll Y) to 0x64
 0x5d C Set LCDC (0xff40) to 0x91 (Enable LCD, Configure data banks and Background)
 0x5f C B is now 1
+0x60 L next_scrolling_value
+0x62 L reset_C
 0x64 L wait_until_vblank
-0x64 C Loading LCDC Y-Coordinate (0xff40), column being transferred to the LCD driver
+0x64 C Loading LCDC Y-Coordinate (0xff44), column being transferred to the LCD driver
 0x66 C Checking if we are at the beginning of VBlank (LY=144)
 0x68 C If that's not the case we move back
-0x68 G wait_until_vblank
+0x6a C 12 frames
+0x6b G wait_until_vblank
+0x6e G reset_C
+0x6e C We have been waiting for 24 frames (1/2 s)
+0x74 C Default sound pitch
+0x7a C Alternate sound pitch
+
+0x81 C Setting value at FF13 - Channel 1 Frequency lo
+0x85 C Setting value at FF14 - Channel 1 Frequency hi
+0x86 C Load the current value of SCY - Scroll Y in A
+0x72 C Increase scrolling value by 1
+0x78 C Skip if the scrolling value is 98
+0x8c G next_scrolling_value
+0x88 C A = B - SCY
+0x89 C Update SCY with the values from B - SCY
+0x93 G next_scrolling_value
+
+0x95 S Image decoding routines
 0x95 L decode_byte_first_half
 0x95 C Reset C to the compressed value
 0x96 L decode_byte_second_half
