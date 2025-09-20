@@ -48,6 +48,20 @@ pub struct Registers {
     sp: u16, // program counter
 }
 
+impl Registers {
+    fn flag_zero(&self) -> bool {
+        (self.f & (1 << 7)) != 0
+    }
+
+    fn flag_zero_set(&mut self, value: bool) {
+        self.f = if value {
+            self.f | (1 << 7)
+        } else {
+            self.f & (!(1 << 7))
+        }
+    }
+}
+
 impl Display for Registers {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
@@ -100,30 +114,36 @@ fn run(bios: &[u8], _debug: bool) -> Result<()> {
 /// with both 8 and 16-bits opcodes
 fn fetch_value(slot: Slot, registers: &Registers, memory: &Memory) -> u16 {
     match slot {
-        Slot::Register8(register) => {
-            (match register {
-                Register8::A => registers.a,
-                Register8::B => registers.b,
-                Register8::C => registers.c,
-                Register8::D => registers.d,
-                Register8::E => registers.e,
-                Register8::H => registers.h,
-                Register8::L => registers.l,
-                Register8::F => registers.f,
-            }) as u16
-        }
+        Slot::Register8(register) => fetch_register8(register, registers) as u16,
         Slot::AddrRegister(_addr_register) => todo!(),
-        Slot::Register16(register) => match register {
-            gb::slots::Register16::AF => registers.af(),
-            gb::slots::Register16::BC => registers.bc(),
-            gb::slots::Register16::DE => registers.de(),
-            gb::slots::Register16::HL => registers.hl(),
-            gb::slots::Register16::SP => registers.sp,
-        },
+        Slot::Register16(register) => fetch_register16(register, registers),
         Slot::Addr8(index) => memory.get((index + 0xFF) as u16) as u16,
         Slot::Addr16(_) => todo!(),
         Slot::Data8(value) => value as u16,
         Slot::Data16(value) => value,
+    }
+}
+
+fn fetch_register8(register: Register8, registers: &Registers) -> u8 {
+    match register {
+        Register8::A => registers.a,
+        Register8::B => registers.b,
+        Register8::C => registers.c,
+        Register8::D => registers.d,
+        Register8::E => registers.e,
+        Register8::H => registers.h,
+        Register8::L => registers.l,
+        Register8::F => registers.f,
+    }
+}
+
+fn fetch_register16(register: Register16, registers: &Registers) -> u16 {
+    match register {
+        gb::slots::Register16::AF => registers.af(),
+        gb::slots::Register16::BC => registers.bc(),
+        gb::slots::Register16::DE => registers.de(),
+        gb::slots::Register16::HL => registers.hl(),
+        gb::slots::Register16::SP => registers.sp,
     }
 }
 
@@ -188,9 +208,8 @@ fn execute(
     // https://www.devrs.com/gb/files/opcodes.html
     match code {
         Opcode::Xor(to, from) => {
-            let value = fetch_value(Slot::Register8(to), registers, memory)
-                ^ fetch_value(Slot::Register8(from), registers, memory);
-            set_value(Slot::Register8(to), registers, memory, value)?;
+            let value = fetch_register8(to, registers) ^ fetch_register8(from, registers);
+            set_value(Slot::Register8(to), registers, memory, value as u16)?;
             *clock += 4; // TODO: It's complicated
         }
         Opcode::Ld(to, from) => {
@@ -229,7 +248,83 @@ fn execute(
             )?;
             registers.set_hl(registers.hl() + 1);
         }
+        Opcode::ComplBit(bit_index, register) => {
+            let value = fetch_register8(register, registers);
+            let bit_value = 1 & (value >> bit_index);
+            registers.flag_zero_set(bit_value == 0); // Complementary of bit_value
+        }
+        Opcode::JumpRNZMemOffset(offset) => {
+            if !registers.flag_zero() {
+                registers.pc = ((registers.pc as i32) + (offset as i32)) as u16;
+            }
+        }
         _ => bail!("Unknown Opcode {}", code),
     };
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use gb::{
+        decoder::{Memory, Opcode},
+        slots::Register8,
+    };
+
+    use crate::Registers;
+
+    use super::execute;
+
+    #[test]
+    fn test_flagzero() {
+        let mut registers = Registers::default();
+        registers.f = 0b10101010;
+        assert!(registers.flag_zero());
+        registers.flag_zero_set(false);
+        assert!(!registers.flag_zero());
+        assert_eq!(registers.f, 0b00101010);
+        registers.flag_zero_set(true);
+        assert!(registers.flag_zero());
+        assert_eq!(registers.f, 0b10101010);
+    }
+
+    #[test]
+    fn test_complbit() {
+        let mut memory = Memory::from_raw(&[0; 1]).unwrap();
+        let mut registers = Registers::default();
+        registers.h = 0b10000000;
+        execute(
+            Opcode::ComplBit(7, Register8::H),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.flag_zero(), false);
+        execute(
+            Opcode::ComplBit(6, Register8::H),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.flag_zero(), true);
+
+        registers.d = 0x01;
+        execute(
+            Opcode::ComplBit(0, Register8::D),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.flag_zero(), false);
+        execute(
+            Opcode::ComplBit(2, Register8::D),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.flag_zero(), true);
+    }
 }
