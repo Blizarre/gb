@@ -207,9 +207,9 @@ fn execute(
 ) -> Result<()> {
     // https://www.devrs.com/gb/files/opcodes.html
     match code {
-        Opcode::Xor(to, from) => {
-            let value = fetch_register8(to, registers) ^ fetch_register8(from, registers);
-            set_value(Slot::Register8(to), registers, memory, value as u16)?;
+        Opcode::Xor(from) => {
+            let value = fetch_register8(Register8::A, registers) ^ fetch_register8(from, registers);
+            set_value(Slot::Register8(Register8::A), registers, memory, value as u16)?;
             *clock += 4; // TODO: It's complicated
         }
         Opcode::Ld(to, from) => {
@@ -285,6 +285,33 @@ mod tests {
         registers.flag_zero_set(true);
         assert!(registers.flag_zero());
         assert_eq!(registers.f, 0b10101010);
+    }
+
+    #[test]
+    fn test_xor() {
+        let mut memory = Memory::from_raw(&[0; 1]).unwrap();
+        let mut registers = Registers::default();
+        registers.a = 0b10100101;
+        execute(
+            Opcode::Xor(Register8::A),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.a, 0);
+
+        registers.a = 0b10100100;
+        registers.b = 0b10100001;
+        execute(
+            Opcode::Xor(Register8::B),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.a, 0b101);
+        assert_eq!(registers.b, 0b10100001);
     }
 
     #[test]
