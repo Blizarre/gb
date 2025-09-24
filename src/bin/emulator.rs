@@ -8,6 +8,7 @@ use clap::{Arg, ArgAction, Command};
 
 extern crate gb;
 use gb::decoder::Memory;
+use gb::decoder::Ppu;
 use gb::slots::AddrRegister;
 use gb::slots::Register16;
 use gb::{
@@ -99,6 +100,7 @@ impl Registers {
 fn run(bios: &[u8], _debug: bool) -> Result<()> {
     let mut memory = Memory::from_raw(bios)?;
     let mut registers = Registers::default();
+    let _ppu = Ppu::new(&memory);
     let mut clock = 0;
 
     loop {

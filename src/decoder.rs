@@ -65,7 +65,7 @@ pub struct Memory([u8; 65536]);
 
 /// A representation of the gameboy memory. The current implementation is naive and only
 /// support trivial use cases. It is a start.
-impl Memory {
+impl<'a> Memory {
     /// Load the complete gameboy memory from scratch. Only useful for testing for now.
     pub fn from_raw(data: &[u8]) -> Result<Memory, MemoryError> {
         if data.len() > 0xFFFF {
@@ -80,8 +80,59 @@ impl Memory {
         self.0[pc as usize]
     }
 
+    pub fn get_mut(&'a mut self, pc: u16) -> &'a mut u8 {
+        self.0.get_mut(pc as usize).unwrap_or_else(|| panic!("Invalid memory index: {}, should be impossible if Memory has been initialized properly.", pc))
+    }
+
+    /// TODO: Remove?
     pub fn set(&mut self, pc: u16, value: u8) {
         self.0[pc as usize] = value
+    }
+}
+
+pub struct Ppu<'a>(&'a Memory);
+
+macro_rules! ppu_rw_field {
+    ($x:ident, $y:expr ) => {
+        pub fn $x(&self) -> u8 {
+            self.0.get($y)
+        }
+    };
+}
+/// The Ppu is configured using the following fields:
+/// $FF40    LCDC    LCD control    R/W    All
+/// $FF41    STAT    LCD status    Mixed    All
+/// $FF42    SCY    Viewport Y position    R/W    All
+/// $FF43    SCX    Viewport X position    R/W    All
+/// $FF44    LY    LCD Y coordinate    R    All
+/// $FF45    LYC    LY compare    R/W    All
+/// $FF46    DMA    OAM DMA source address & start    R/W    All
+/// $FF47    BGP    BG palette data    R/W    DMG
+/// $FF48    OBP0    OBJ palette 0 data    R/W    DMG
+/// $FF49    OBP1    OBJ palette 1 data    R/W    DMG
+/// $FF4A    WY    Window Y position    R/W    All
+/// $FF4B    WX    Window X position plus 7    R/W    All
+impl<'a> Ppu<'a> {
+    ppu_rw_field!(lcdc, 0xff40);
+
+    pub fn new(memory: &'a Memory) -> Self {
+        Ppu(memory)
+    }
+
+    pub fn stat(&self) -> u8 {
+        self.0.get(0xff41)
+    }
+
+    pub fn scy(&self) -> u8 {
+        self.0.get(0xff42)
+    }
+
+    pub fn scx(&self) -> u8 {
+        self.0.get(0xff43)
+    }
+
+    pub fn ly(&self) -> u8 {
+        self.0.get(0xff44)
     }
 }
 
