@@ -70,7 +70,7 @@ impl Display for Registers {
             "a: {:2x} b: {:2x} c: {:2x} d: {:2x} e: {:2x} h: {:2x} l: {:2x}",
             self.a, self.b, self.c, self.d, self.e, self.h, self.l
         )?;
-        write!(f, "f: {:2x} pc: {:4x} sp: {:4x}", self.f, self.pc, self.sp)
+        write!(f, "pc: {:4x} f: {:2x} sp: {:4x}", self.pc, self.f, self.sp)
     }
 }
 
@@ -117,12 +117,23 @@ fn run(bios: &[u8], _debug: bool) -> Result<()> {
 fn fetch_value(slot: Slot, registers: &Registers, memory: &Memory) -> u16 {
     match slot {
         Slot::Register8(register) => fetch_register8(register, registers) as u16,
-        Slot::AddrRegister(_addr_register) => todo!(),
+        Slot::AddrRegister(addr_register) => {
+            fetch_addr_register16(addr_register, registers, memory) as u16
+        }
         Slot::Register16(register) => fetch_register16(register, registers),
         Slot::Addr8(index) => memory.get((index + 0xFF) as u16) as u16,
         Slot::Addr16(_) => todo!(),
         Slot::Data8(value) => value as u16,
         Slot::Data16(value) => value,
+    }
+}
+
+fn fetch_addr_register16(register: AddrRegister, registers: &Registers, memory: &Memory) -> u8 {
+    match register {
+        AddrRegister::BC => memory.get(registers.bc()),
+        AddrRegister::DE => memory.get(registers.de()),
+        AddrRegister::HL => memory.get(registers.hl()),
+        AddrRegister::C => memory.get(0xff + registers.c as u16),
     }
 }
 
@@ -211,7 +222,12 @@ fn execute(
     match code {
         Opcode::Xor(from) => {
             let value = fetch_register8(Register8::A, registers) ^ fetch_register8(from, registers);
-            set_value(Slot::Register8(Register8::A), registers, memory, value as u16)?;
+            set_value(
+                Slot::Register8(Register8::A),
+                registers,
+                memory,
+                value as u16,
+            )?;
             *clock += 4; // TODO: It's complicated
         }
         Opcode::Ld(to, from) => {
@@ -259,6 +275,10 @@ fn execute(
             if !registers.flag_zero() {
                 registers.pc = ((registers.pc as i32) + (offset as i32)) as u16;
             }
+        }
+        Opcode::Inc(slot) => {
+            let value = fetch_value(slot, registers, memory);
+            set_value(slot, registers, memory, value + 1)?;
         }
         _ => bail!("Unknown Opcode {}", code),
     };
