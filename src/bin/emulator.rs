@@ -9,6 +9,7 @@ use clap::{Arg, ArgAction, Command};
 extern crate gb;
 use gb::decoder::Memory;
 use gb::decoder::Ppu;
+use gb::gui::MyApp;
 use gb::slots::AddrRegister;
 use gb::slots::Register16;
 use gb::{
@@ -20,9 +21,11 @@ fn main() {
     let matches = Command::new("Emulator")
         .arg(Arg::new("bios").required(true))
         .arg(Arg::new("debug").short('d').action(ArgAction::SetTrue))
+        .arg(Arg::new("gui").short('g').action(ArgAction::SetTrue))
         .get_matches();
     let bios_file_name: &String = matches.get_one("bios").unwrap();
     let debug = matches.get_flag("debug");
+    let gui = matches.get_flag("gui");
 
     println!("Loading {}", bios_file_name);
 
@@ -30,7 +33,24 @@ fn main() {
     File::open(bios_file_name)
         .and_then(|mut file| file.read_to_end(&mut bios))
         .unwrap();
-    run(&bios, debug).unwrap()
+
+    let join = std::thread::spawn(move || run(&bios, debug).unwrap());
+
+    if gui {
+        let options = eframe::NativeOptions {
+            viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+            ..Default::default()
+        };
+        let result_gui = eframe::run_native(
+            "GameBoy Emulator",
+            options,
+            Box::new(|cc| Ok(Box::<MyApp>::new(MyApp::new(cc)))),
+        );
+        result_gui.unwrap();
+    }
+
+    let result_run = join.join();
+    result_run.unwrap();
 }
 
 #[derive(Default)]

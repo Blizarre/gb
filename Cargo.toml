@@ -8,4 +8,6 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.99"
 clap = "4.4"
+eframe = "0.32.3"
+egui = "0.32.3"
 itertools = "0.11"
