@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use gb::emulation::registers::Registers;
 use std::fs::File;
 use std::io::Read;
 
@@ -51,70 +51,6 @@ fn main() {
 
     let result_run = join.join();
     result_run.unwrap();
-}
-
-#[derive(Default)]
-pub struct Registers {
-    a: u8,
-    b: u8,
-    c: u8,
-    d: u8,
-    e: u8,
-    h: u8,
-    l: u8,
-    //
-    // Special registers
-    f: u8,   // flags
-    pc: u16, // program counter
-    sp: u16, // stack pointer
-}
-
-impl Registers {
-    fn flag_zero(&self) -> bool {
-        (self.f & (1 << 7)) != 0
-    }
-
-    fn flag_zero_set(&mut self, value: bool) {
-        self.f = if value {
-            self.f | (1 << 7)
-        } else {
-            self.f & (!(1 << 7))
-        }
-    }
-}
-
-impl Display for Registers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "a: {:2x} b: {:2x} c: {:2x} d: {:2x} e: {:2x} h: {:2x} l: {:2x}",
-            self.a, self.b, self.c, self.d, self.e, self.h, self.l
-        )?;
-        write!(f, "pc: {:4x} f: {:2x} sp: {:4x}", self.pc, self.f, self.sp)
-    }
-}
-
-impl Registers {
-    fn af(&self) -> u16 {
-        (self.a as u16) << 8 | self.f as u16
-    }
-
-    fn bc(&self) -> u16 {
-        (self.b as u16) << 8 | self.c as u16
-    }
-
-    fn de(&self) -> u16 {
-        (self.d as u16) << 8 | self.e as u16
-    }
-
-    fn hl(&self) -> u16 {
-        (self.h as u16) << 8 | self.l as u16
-    }
-
-    fn set_hl(&mut self, val: u16) {
-        self.h = (val >> 8) as u8;
-        self.l = (val & 0xFF) as u8;
-    }
 }
 
 fn run(bios: &[u8], _debug: bool) -> Result<()> {
@@ -333,7 +269,7 @@ fn execute(
             memory.set(registers.sp, pc_value[1]);
         }
         Opcode::Pop(slot) => {
-            let bytes_value = [memory.get(registers.sp+1), memory.get(registers.sp )];
+            let bytes_value = [memory.get(registers.sp + 1), memory.get(registers.sp)];
             registers.sp += 2;
             let value = u16::from_le_bytes(bytes_value);
             set_register16(slot, registers, value)?;
