@@ -1,5 +1,7 @@
+use clap::value_parser;
 use gb::emulation::registers::Registers;
 use std::fs::File;
+use std::io::stdin;
 use std::io::Read;
 
 use anyhow::bail;
@@ -19,10 +21,12 @@ fn main() {
         .arg(Arg::new("bios").required(true))
         .arg(Arg::new("debug").short('d').action(ArgAction::SetTrue))
         .arg(Arg::new("gui").short('g').action(ArgAction::SetTrue))
+        .arg(Arg::new("breakpoint").short('b').value_parser(value_parser!(u16)))
         .get_matches();
     let bios_file_name: &String = matches.get_one("bios").unwrap();
     let debug = matches.get_flag("debug");
     let gui = matches.get_flag("gui");
+    let breakpoint = matches.get_one::<u16>("breakpoint").copied();
 
     println!("Loading {}", bios_file_name);
 
@@ -31,7 +35,7 @@ fn main() {
         .and_then(|mut file| file.read_to_end(&mut bios))
         .unwrap();
 
-    let join = std::thread::spawn(move || run(&bios, debug).unwrap());
+    let join = std::thread::spawn(move || run(&bios, debug, breakpoint).unwrap());
 
     if gui {
         let options = eframe::NativeOptions {
@@ -50,15 +54,21 @@ fn main() {
     result_run.unwrap();
 }
 
-fn run(bios: &[u8], _debug: bool) -> Result<()> {
+fn run(bios: &[u8], _debug: bool, breakpoint: Option<u16>) -> Result<()> {
     let mut memory = Memory::from_raw(bios)?;
     let mut registers = Registers::default();
     let _ppu = Ppu::new(&memory);
     let mut clock = 0;
+    let mut has_hit_breakpoint = false;
 
     loop {
         let code = decode(&memory, &mut registers.pc)?;
-        println!("Code: {}", code);
+        if has_hit_breakpoint || breakpoint.map(|bkp| bkp == registers.pc).unwrap_or(false) {
+            let mut dummy = String::new();
+            stdin().read_line(&mut dummy)?;
+            has_hit_breakpoint = true;
+        }
+        println!("Execute {}", code);
         execute(code, &mut registers, &mut memory, &mut clock)?;
         println!("Registers: {}", registers);
         println!();
