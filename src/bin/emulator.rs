@@ -127,6 +127,39 @@ fn fetch_register16(register: slots::Register16, registers: &Registers) -> u16 {
     }
 }
 
+fn set_register8(
+    register: slots::Register8,
+    registers: &mut Registers,
+    value: u8,
+) -> Result<()> {
+    match register {
+        slots::Register8::A => {
+            registers.a = value;
+        }
+        slots::Register8::B => {
+            registers.a = value;
+        }
+        slots::Register8::C => {
+            registers.a = value;
+        }
+        slots::Register8::D => {
+            registers.a = value;
+        }
+        slots::Register8::E => {
+            registers.a = value;
+        }
+        slots::Register8::F => {
+            registers.a = value;
+        }
+        slots::Register8::L => {
+            registers.a = value;
+        }
+        slots::Register8::H => {
+            registers.a = value;
+        }
+    }
+    Ok(())
+}
 fn set_register16(
     register: slots::Register16,
     registers: &mut Registers,
@@ -285,11 +318,30 @@ fn execute(
             memory.set(registers.sp, pc_value[1]);
         }
         Opcode::Pop(slot) => {
-            let bytes_value = [memory.get(registers.sp + 1), memory.get(registers.sp)];
+            let value = {
+                let bytes_value = [memory.get(registers.sp + 1), memory.get(registers.sp)];
+                u16::from_le_bytes(bytes_value)
+            };
             registers.sp += 2;
-            let value = u16::from_le_bytes(bytes_value);
             set_register16(slot, registers, value)?;
         }
+        Opcode::RotLeft(slot) => {
+            let mut value = fetch_register8(slot, registers);
+            let new_carry = 0b10000000 & value;
+            value <<= value;
+            value &= registers.flag_carry_u8();
+            registers.flag_carry_set(new_carry != 0);
+            set_register8(slot, registers, value)?;
+        }
+        Opcode::Ret => {
+            let pc = {
+                let pc_bytes = [memory.get(registers.sp + 1), memory.get(registers.sp)];
+                u16::from_le_bytes(pc_bytes)
+            };
+            registers.sp += 2;
+            registers.pc = pc;
+        }
+        Opcode::Nop => {}
         _ => bail!("Unknown Opcode {}", code),
     };
     Ok(())

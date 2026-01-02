@@ -21,11 +21,33 @@ impl Registers {
         (self.f & (1 << 7)) != 0
     }
 
+
+    pub fn flag_zero_u8(&self) -> u8 {
+        self.f & (1 << 7)
+    }
+
     pub fn flag_zero_set(&mut self, value: bool) {
         self.f = if value {
             self.f | (1 << 7)
         } else {
             self.f & (!(1 << 7))
+        }
+    }
+
+    pub fn flag_carry(&self) -> bool {
+        (self.f & (1 << 4)) != 0
+    }
+
+    /// Carry flag in the lsb
+    pub fn flag_carry_u8(&self) -> u8 {
+        (self.f & (1 << 4)) >> 4
+    }
+
+    pub fn flag_carry_set(&mut self, value: bool) {
+        self.f = if value {
+            self.f | (1 << 4)
+        } else {
+            self.f & (!(1 << 4))
         }
     }
 }
@@ -69,7 +91,7 @@ mod tests {
     use crate::emulation::registers::Registers;
 
     #[test]
-    fn test_flagzero() {
+    fn test_flag_zero() {
         let mut registers = Registers::default();
         registers.f = 0b10101010;
         assert!(registers.flag_zero());
@@ -79,5 +101,18 @@ mod tests {
         registers.flag_zero_set(true);
         assert!(registers.flag_zero());
         assert_eq!(registers.f, 0b10101010);
+    }
+
+    #[test]
+    fn test_flag_carry() {
+        let mut registers = Registers::default();
+        registers.f = 0b10111010;
+        assert!(registers.flag_carry());
+        registers.flag_carry_set(false);
+        assert!(!registers.flag_carry());
+        assert_eq!(registers.f, 0b10101010);
+        registers.flag_carry_set(true);
+        assert!(registers.flag_carry());
+        assert_eq!(registers.f, 0b10111010);
     }
 }

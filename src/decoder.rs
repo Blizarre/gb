@@ -160,7 +160,9 @@ pub fn decode(data: &Memory, pc: &mut u16) -> Result<Opcode, DecodeError> {
     *pc += 1;
     // Extended Opcodes
     if opcode == 0xcb {
-        return decode_extended(data.get(*pc));
+        let code = decode_extended(data.get(*pc));
+        *pc += 1;
+        return code;
     }
 
     if (0x40..0x80).contains(&opcode) {
