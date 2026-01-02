@@ -84,6 +84,19 @@ impl<'a> Memory {
         self.0.get_mut(pc as usize).unwrap_or_else(|| panic!("Invalid memory index: {}, should be impossible if Memory has been initialized properly.", pc))
     }
 
+    pub fn push_u16(&mut self, addr: u16, value: u16) {
+        let bytes = u16::to_le_bytes(value);
+        self.0[addr as usize] = bytes[0];
+        self.0[(addr - 1) as usize] = bytes[1];
+    }
+
+    pub fn pop_u16(&mut self, addr: u16) -> u16 {
+        let mut bytes = [0u8; 2];
+        bytes[1] = self.0[(addr + 1) as usize];
+        bytes[0] = self.0[(addr + 2) as usize];
+        u16::from_le_bytes(bytes)
+    }
+
     /// TODO: Remove?
     pub fn set(&mut self, pc: u16, value: u8) {
         self.0[pc as usize] = value
@@ -223,7 +236,7 @@ pub fn decode(data: &Memory, pc: &mut u16) -> Result<Opcode, DecodeError> {
         0xc1 => Opcode::Pop(BC),
         0xc5 => Opcode::Push(BC),
         0xc9 => Opcode::Ret,
-        0xcd => Opcode::Call(Slot::parse_d16(data, pc)),
+        0xcd => Opcode::Call(Slot::parse_a16(data, pc)),
         0xe0 => Opcode::Ld(Slot::parse_a8(data, pc), Slot::r8(A)),
         0xe2 => Opcode::Ld(Slot::addr(AddrRegister::C), Slot::r8(A)),
         0xea => Opcode::Ld(Slot::parse_a16(data, pc), Slot::r8(A)),

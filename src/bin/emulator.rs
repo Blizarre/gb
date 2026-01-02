@@ -63,10 +63,10 @@ pub struct Registers {
     h: u8,
     l: u8,
     //
-    // Special register
-    f: u8,   // Flags
+    // Special registers
+    f: u8,   // flags
     pc: u16, // program counter
-    sp: u16, // program counter
+    sp: u16, // stack pointer
 }
 
 impl Registers {
@@ -180,6 +180,26 @@ fn fetch_register16(register: Register16, registers: &Registers) -> u16 {
     }
 }
 
+fn set_register16(register: Register16, registers: &mut Registers, value: u16) -> Result<()> {
+    match register {
+        gb::slots::Register16::AF => bail!("Cannot set value to register AF"),
+        gb::slots::Register16::BC => {
+            registers.b = (value >> 8) as u8;
+            registers.c = value as u8
+        }
+        gb::slots::Register16::DE => {
+            registers.d = (value >> 8) as u8;
+            registers.e = value as u8
+        }
+        gb::slots::Register16::HL => {
+            registers.h = (value >> 8) as u8;
+            registers.l = value as u8
+        }
+        gb::slots::Register16::SP => registers.sp = value,
+    }
+    Ok(())
+}
+
 fn set_value(slot: Slot, registers: &mut Registers, memory: &mut Memory, value: u16) -> Result<()> {
     match slot {
         Slot::Register8(register) => match register {
@@ -208,22 +228,9 @@ fn set_value(slot: Slot, registers: &mut Registers, memory: &mut Memory, value: 
                 }
             };
         }
-        Slot::Register16(register) => match register {
-            gb::slots::Register16::AF => bail!("Cannot set value to register AF"),
-            gb::slots::Register16::BC => {
-                registers.b = (value >> 8) as u8;
-                registers.c = value as u8
-            }
-            gb::slots::Register16::DE => {
-                registers.d = (value >> 8) as u8;
-                registers.e = value as u8
-            }
-            gb::slots::Register16::HL => {
-                registers.h = (value >> 8) as u8;
-                registers.l = value as u8
-            }
-            gb::slots::Register16::SP => registers.sp = value,
-        },
+        Slot::Register16(register) => {
+            set_register16(register, registers, value)?;
+        }
         Slot::Addr8(index) => memory.set(0xff00 + index as u16, value as u8),
         Slot::Addr16(_) => todo!(),
         Slot::Data8(_) => todo!(),
@@ -300,6 +307,37 @@ fn execute(
             let value = fetch_value(slot, registers, memory);
             set_value(slot, registers, memory, value + 1)?;
         }
+        Opcode::Call(slot) => {
+            // Push PC onto the stack
+            let pc_value = u16::to_le_bytes(registers.pc);
+            memory.set(registers.sp, pc_value[0]);
+            registers.sp -= 1;
+            memory.set(registers.sp, pc_value[1]);
+            registers.sp -= 1;
+
+            // Update PC with the value from the argument
+            match slot {
+                Slot::Addr16(address) => registers.pc = address,
+                _ => {
+                    bail!("Invalid type for CALL, expected Register16");
+                }
+            }
+        }
+        Opcode::Push(slot) => {
+            let value = fetch_register16(slot, registers);
+            // Push PC onto the stack
+            let pc_value = u16::to_le_bytes(value);
+            registers.sp -= 1;
+            memory.set(registers.sp, pc_value[0]);
+            registers.sp -= 1;
+            memory.set(registers.sp, pc_value[1]);
+        }
+        Opcode::Pop(slot) => {
+            let bytes_value = [memory.get(registers.sp+1), memory.get(registers.sp )];
+            registers.sp += 2;
+            let value = u16::from_le_bytes(bytes_value);
+            set_register16(slot, registers, value)?;
+        }
         _ => bail!("Unknown Opcode {}", code),
     };
     Ok(())
@@ -309,7 +347,7 @@ fn execute(
 mod tests {
     use gb::{
         decoder::{Memory, Opcode},
-        slots::Register8,
+        slots::{Register16, Register8},
     };
 
     use crate::Registers;
@@ -395,5 +433,36 @@ mod tests {
         )
         .unwrap();
         assert_eq!(registers.flag_zero(), true);
+    }
+
+    #[test]
+    fn test_push_pop() {
+        let mut memory = Memory::from_raw(&[0; 0xffff]).unwrap();
+        let mut registers = Registers::default();
+
+        registers.sp = 42;
+        registers.a = 0xab;
+        registers.f = 0xcd;
+        assert_eq!(registers.af(), 0xabcd);
+        execute(
+            Opcode::Push(Register16::AF),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.sp, 40);
+        assert_eq!(memory.get(registers.sp), 0xab);
+        assert_eq!(memory.get(registers.sp + 1), 0xcd);
+
+        execute(
+            Opcode::Pop(Register16::DE),
+            &mut registers,
+            &mut memory,
+            &mut 0,
+        )
+        .unwrap();
+        assert_eq!(registers.sp, 42);
+        assert_eq!(registers.de(), 0xabcd);
     }
 }
