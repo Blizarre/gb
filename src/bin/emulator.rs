@@ -9,13 +9,10 @@ use clap::{Arg, ArgAction, Command};
 extern crate gb;
 use gb::decoder::Memory;
 use gb::decoder::Ppu;
+use gb::decoder::{decode, Opcode};
 use gb::gui::MyApp;
-use gb::slots::AddrRegister;
-use gb::slots::Register16;
-use gb::{
-    decoder::{decode, Opcode},
-    slots::{Register8, Slot},
-};
+use gb::slots;
+use gb::slots::Slot;
 
 fn main() {
     let matches = Command::new("Emulator")
@@ -84,54 +81,62 @@ fn fetch_value(slot: Slot, registers: &Registers, memory: &Memory) -> u16 {
     }
 }
 
-fn fetch_addr_register16(register: AddrRegister, registers: &Registers, memory: &Memory) -> u8 {
+fn fetch_addr_register16(
+    register: slots::AddrRegister,
+    registers: &Registers,
+    memory: &Memory,
+) -> u8 {
     match register {
-        AddrRegister::BC => memory.get(registers.bc()),
-        AddrRegister::DE => memory.get(registers.de()),
-        AddrRegister::HL => memory.get(registers.hl()),
-        AddrRegister::C => memory.get(0xff + registers.c as u16),
+        slots::AddrRegister::BC => memory.get(registers.bc()),
+        slots::AddrRegister::DE => memory.get(registers.de()),
+        slots::AddrRegister::HL => memory.get(registers.hl()),
+        slots::AddrRegister::C => memory.get(0xff + registers.c as u16),
     }
 }
 
-fn fetch_register8(register: Register8, registers: &Registers) -> u8 {
+fn fetch_register8(register: slots::Register8, registers: &Registers) -> u8 {
     match register {
-        Register8::A => registers.a,
-        Register8::B => registers.b,
-        Register8::C => registers.c,
-        Register8::D => registers.d,
-        Register8::E => registers.e,
-        Register8::H => registers.h,
-        Register8::L => registers.l,
-        Register8::F => registers.f,
+        slots::Register8::A => registers.a,
+        slots::Register8::B => registers.b,
+        slots::Register8::C => registers.c,
+        slots::Register8::D => registers.d,
+        slots::Register8::E => registers.e,
+        slots::Register8::H => registers.h,
+        slots::Register8::L => registers.l,
+        slots::Register8::F => registers.f,
     }
 }
 
-fn fetch_register16(register: Register16, registers: &Registers) -> u16 {
+fn fetch_register16(register: slots::Register16, registers: &Registers) -> u16 {
     match register {
-        gb::slots::Register16::AF => registers.af(),
-        gb::slots::Register16::BC => registers.bc(),
-        gb::slots::Register16::DE => registers.de(),
-        gb::slots::Register16::HL => registers.hl(),
-        gb::slots::Register16::SP => registers.sp,
+        slots::Register16::AF => registers.af(),
+        slots::Register16::BC => registers.bc(),
+        slots::Register16::DE => registers.de(),
+        slots::Register16::HL => registers.hl(),
+        slots::Register16::SP => registers.sp,
     }
 }
 
-fn set_register16(register: Register16, registers: &mut Registers, value: u16) -> Result<()> {
+fn set_register16(
+    register: slots::Register16,
+    registers: &mut Registers,
+    value: u16,
+) -> Result<()> {
     match register {
-        gb::slots::Register16::AF => bail!("Cannot set value to register AF"),
-        gb::slots::Register16::BC => {
+        slots::Register16::AF => bail!("Cannot set value to register AF"),
+        slots::Register16::BC => {
             registers.b = (value >> 8) as u8;
             registers.c = value as u8
         }
-        gb::slots::Register16::DE => {
+        slots::Register16::DE => {
             registers.d = (value >> 8) as u8;
             registers.e = value as u8
         }
-        gb::slots::Register16::HL => {
+        slots::Register16::HL => {
             registers.h = (value >> 8) as u8;
             registers.l = value as u8
         }
-        gb::slots::Register16::SP => registers.sp = value,
+        slots::Register16::SP => registers.sp = value,
     }
     Ok(())
 }
@@ -139,27 +144,27 @@ fn set_register16(register: Register16, registers: &mut Registers, value: u16) -
 fn set_value(slot: Slot, registers: &mut Registers, memory: &mut Memory, value: u16) -> Result<()> {
     match slot {
         Slot::Register8(register) => match register {
-            Register8::A => registers.a = value as u8,
-            Register8::B => registers.b = value as u8,
-            Register8::C => registers.c = value as u8,
-            Register8::D => registers.d = value as u8,
-            Register8::E => registers.e = value as u8,
-            Register8::H => registers.h = value as u8,
-            Register8::L => registers.l = value as u8,
-            Register8::F => bail!("Cannot set value to register F"),
+            slots::Register8::A => registers.a = value as u8,
+            slots::Register8::B => registers.b = value as u8,
+            slots::Register8::C => registers.c = value as u8,
+            slots::Register8::D => registers.d = value as u8,
+            slots::Register8::E => registers.e = value as u8,
+            slots::Register8::H => registers.h = value as u8,
+            slots::Register8::L => registers.l = value as u8,
+            slots::Register8::F => bail!("Cannot set value to register F"),
         },
         Slot::AddrRegister(addr_register) => {
             match addr_register {
-                AddrRegister::BC => {
+                slots::AddrRegister::BC => {
                     memory.set(registers.bc(), value as u8);
                 }
-                AddrRegister::DE => {
+                slots::AddrRegister::DE => {
                     memory.set(registers.de(), value as u8);
                 }
-                AddrRegister::HL => {
+                slots::AddrRegister::HL => {
                     memory.set(registers.hl(), value as u8);
                 }
-                AddrRegister::C => {
+                slots::AddrRegister::C => {
                     memory.set(registers.c as u16 + 0xFF00, value as u8);
                 }
             };
@@ -184,9 +189,10 @@ fn execute(
     // https://www.devrs.com/gb/files/opcodes.html
     match code {
         Opcode::Xor(from) => {
-            let value = fetch_register8(Register8::A, registers) ^ fetch_register8(from, registers);
+            let value =
+                fetch_register8(slots::Register8::A, registers) ^ fetch_register8(from, registers);
             set_value(
-                Slot::Register8(Register8::A),
+                Slot::Register8(slots::Register8::A),
                 registers,
                 memory,
                 value as u16,
@@ -194,16 +200,16 @@ fn execute(
             *clock += 4; // TODO: It's complicated
         }
         Opcode::Ld(to, from) => {
-            if matches!(from, Slot::Register8(Register8::F)) {
+            if matches!(from, Slot::Register8(slots::Register8::F)) {
                 bail!("Invalid 'from' register F in Ld");
             }
-            if matches!(from, Slot::Register16(Register16::AF)) {
+            if matches!(from, Slot::Register16(slots::Register16::AF)) {
                 bail!("Invalid 'from' register AF in Ld");
             }
-            if matches!(to, Slot::Register8(Register8::F)) {
+            if matches!(to, Slot::Register8(slots::Register8::F)) {
                 bail!("Invalid 'to' register F in Ld");
             }
-            if matches!(to, Slot::Register16(Register16::AF)) {
+            if matches!(to, Slot::Register16(slots::Register16::AF)) {
                 bail!("Invalid 'to' register AF in Ld");
             }
             let value = fetch_value(from, registers, memory);
@@ -212,7 +218,7 @@ fn execute(
         Opcode::LdDec(from) => {
             let value = fetch_value(Slot::Register8(from), registers, memory);
             set_value(
-                Slot::AddrRegister(AddrRegister::HL),
+                Slot::AddrRegister(slots::AddrRegister::HL),
                 registers,
                 memory,
                 value,
@@ -222,7 +228,7 @@ fn execute(
         Opcode::LdInc(from) => {
             let value = fetch_value(Slot::Register8(from), registers, memory);
             set_value(
-                Slot::AddrRegister(AddrRegister::HL),
+                Slot::AddrRegister(slots::AddrRegister::HL),
                 registers,
                 memory,
                 value,
